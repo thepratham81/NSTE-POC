@@ -1,0 +1,14 @@
+# Sensitive infrastructure files — never commit these
+hosts.ini
+*.ini
+vault.yml
+.vault_pass
+*.vault
+
+# Ansible runtime artefacts
+*.retry
+.ansible/
+
+# OS artefacts
+.DS_Store
+*.swp

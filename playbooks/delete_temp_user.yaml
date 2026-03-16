@@ -1,0 +1,35 @@
+---
+# delete_temp_user.yml
+# Usage: -e "booking_username=nste-jsmith booking_id=BK-001"
+
+- name: Delete temporary local user from NSTE Jumphost
+  hosts: jumphost
+  gather_facts: false
+  vars_files:
+    - /etc/ansible/nste/vault.yml
+
+  tasks:
+
+    - name: Force log off any active sessions for this user
+      ansible.windows.win_shell: |
+        $sessions = query session {{ booking_username }} 2>$null
+        if ($sessions) {
+          $sessionId = ($sessions -split '\s+' | Where-Object { $_ -match '^\d+$' })[0]
+          if ($sessionId) { logoff $sessionId /server:localhost }
+        }
+      ignore_errors: true
+
+    - name: Delete local user account
+      ansible.windows.win_user:
+        name: "{{ booking_username }}"
+        state: absent
+
+    - name: Remove temp password file
+      ansible.builtin.file:
+        path: /tmp/nste_temp_password.txt
+        state: absent
+      delegate_to: localhost
+
+    - name: Log deletion
+      ansible.builtin.debug:
+        msg: "Temp account deleted: {{ booking_username }} | Booking: {{ booking_id }}"
