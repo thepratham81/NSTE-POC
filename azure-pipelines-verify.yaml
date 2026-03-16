@@ -1,0 +1,11 @@
+trigger: none
+
+pool:
+  name: NSTE-Deploy   # Change to NSTE-Teardown for second run
+
+steps:
+  - script: |
+      ansible --version
+      which ansible-playbook
+      ansible localhost -m ping
+    displayName: 'Verify Ansible from ADO Agent'
