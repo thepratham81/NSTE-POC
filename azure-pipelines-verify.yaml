@@ -1,7 +1,7 @@
 trigger: none
 
 pool:
-  name: NSTE-Deploy   # Change to NSTE-Teardown for second run
+  name: NSTE-Teardown #NSTE-Deploy   # Change to NSTE-Teardown for second run
 
 steps:
   - script: |
