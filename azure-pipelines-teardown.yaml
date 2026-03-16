@@ -1,0 +1,36 @@
+# azure-pipelines-teardown.yml
+trigger: none
+
+pool:
+  name: NSTE-Teardown
+
+resources:
+  repositories:
+    - repository: nste_ansible
+      type: github
+      name: <your-github-username>/nste-jit-ansible
+      endpoint: github-nste
+
+variables:
+  - name: bookingUsername
+    value: ''
+  - name: bookingId
+    value: ''
+
+steps:
+  # Step 1: Checkout latest playbooks from GitHub
+  - checkout: git://nste_ansible
+    displayName: 'Checkout NSTE Ansible playbooks from GitHub'
+
+  # Step 2: Run the teardown playbook from the GitHub checkout
+  - task: Bash@3
+    displayName: 'Delete Temporary JIT Account'
+    inputs:
+      targetType: inline
+      script: |
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/delete_temp_user.yml \
+          -i /etc/ansible/nste/hosts.ini \
+          --vault-password-file /etc/ansible/nste/.vault_pass \
+          -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
+
+        rm -f /etc/ansible/nste/active_booking.json

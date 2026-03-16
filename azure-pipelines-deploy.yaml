@@ -1,0 +1,65 @@
+# azure-pipelines-deploy.yml
+trigger: none
+
+pool:
+  name: NSTE-Deploy
+
+#resources:
+#  repositories:
+#    - repository: nste_ansible
+#      type: github
+#      name: <your-github-username>/nste-jit-ansible
+#      endpoint: github-nste          # Service connection name from Step 3.9
+
+variables:
+  - name: bookingUsername
+    value: ''   # e.g. nste-jsmith — passed at runtime
+  - name: bookingId
+    value: ''   # e.g. BK-001
+  - name: bookingEndEpoch
+    value: ''   # Unix timestamp of booking end
+  - name: bookingUserEmail
+    value: ''
+
+steps:
+  # Step 1: Checkout latest playbooks from GitHub
+  - checkout: git://nste_ansible
+    displayName: 'Checkout NSTE Ansible playbooks from GitHub'
+
+  # Step 2: Sync latest playbooks and scripts to local paths (used by cron)
+  - task: Bash@3
+    displayName: 'Sync playbooks and scripts from GitHub checkout'
+    inputs:
+      targetType: inline
+      script: |
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
+        cp $(System.DefaultWorkingDirectory)/scripts/cleanup_stale_account.sh /etc/ansible/nste/scripts/
+        chmod +x /etc/ansible/nste/scripts/cleanup_stale_account.sh
+
+  # Step 3: Run the deploy playbook from the GitHub checkout
+  - task: Bash@3
+    displayName: 'Create Temporary JIT Account'
+    inputs:
+      targetType: inline
+      script: |
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yml \
+          -i /etc/ansible/nste/hosts.ini \
+          --vault-password-file /etc/ansible/nste/.vault_pass \
+          -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
+
+        # Capture password and set as secret variable
+        TEMP_PASS=$(cat /tmp/nste_temp_password.txt)
+        echo "##vso[task.setvariable variable=tempPassword;issecret=true]$TEMP_PASS"
+
+        # Write state file for safety-net cron
+        echo '{"booking_username":"'$(bookingUsername)'","booking_id":"'$(bookingId)'","end_epoch":'$(bookingEndEpoch)'}' \
+          > /etc/ansible/nste/active_booking.json
+
+  # Step 4: Notify user with credentials
+  - task: Bash@3
+    displayName: 'Notify User with Credentials'
+    inputs:
+      targetType: inline
+      script: |
+        curl -X POST '$(notifyWebhookUrl)' -H 'Content-Type: application/json' \
+          -d '{"email":"$(bookingUserEmail)","username":"$(bookingUsername)","password":"$(tempPassword)","jumphost":"<JUMPHOST_IP>"}'
