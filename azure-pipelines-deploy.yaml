@@ -4,16 +4,6 @@ trigger: none
 pool:
   name: NSTE-Deploy
 
-variables:
-  - name: bookingUsername
-    value: ''
-  - name: bookingId
-    value: ''
-  - name: bookingEndEpoch # Unix timestamp representing the date and time when the booking ends — i.e. when the JIT access should expire
-    value: ''
-  - name: bookingUserEmail
-    value: ''
-
 steps:
   - checkout: self
     displayName: 'Checkout NSTE Ansible playbooks from GitHub'
