@@ -4,13 +4,6 @@ trigger: none
 pool:
   name: NSTE-Teardown
 
-resources:
-  repositories:
-    - repository: nste_ansible
-      type: github
-      name: <your-github-username>/nste-jit-ansible
-      endpoint: github-nste
-
 variables:
   - name: bookingUsername
     value: ''
@@ -18,11 +11,17 @@ variables:
     value: ''
 
 steps:
-  # Step 1: Checkout latest playbooks from GitHub
-  - checkout: git://nste_ansible
+  - checkout: self
     displayName: 'Checkout NSTE Ansible playbooks from GitHub'
 
-  # Step 2: Run the teardown playbook from the GitHub checkout
+  - task: Bash@3
+    displayName: 'Sync playbooks from GitHub checkout'
+    inputs:
+      targetType: inline
+      script: |
+        mkdir -p /etc/ansible/nste/playbooks
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
+
   - task: Bash@3
     displayName: 'Delete Temporary JIT Account'
     inputs:
