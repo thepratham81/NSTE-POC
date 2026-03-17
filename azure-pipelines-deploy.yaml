@@ -9,7 +9,7 @@ variables:
     value: ''
   - name: bookingId
     value: ''
-  - name: bookingEndEpoch
+  - name: bookingEndEpoch # Unix timestamp representing the date and time when the booking ends — i.e. when the JIT access should expire
     value: ''
   - name: bookingUserEmail
     value: ''
