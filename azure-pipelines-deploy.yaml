@@ -1,4 +1,4 @@
-# azure-pipelines-deploy.yml
+# azure-pipelines-deploy.yaml
 trigger: none
 
 pool:
@@ -25,7 +25,7 @@ steps:
       script: |
         mkdir -p /etc/ansible/nste/playbooks
         mkdir -p /etc/ansible/nste/scripts
-        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
         cp $(System.DefaultWorkingDirectory)/scripts/cleanup_stale_account.sh /etc/ansible/nste/scripts/
         chmod +x /etc/ansible/nste/scripts/cleanup_stale_account.sh
 
@@ -34,7 +34,7 @@ steps:
     inputs:
       targetType: inline
       script: |
-        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yml \
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yaml \
           -i /etc/ansible/nste/hosts.ini \
           --vault-password-file /etc/ansible/nste/.vault_pass \
           -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
