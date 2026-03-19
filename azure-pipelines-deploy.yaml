@@ -15,7 +15,7 @@ steps:
       script: |
         mkdir -p /etc/ansible/nste/playbooks
         mkdir -p /etc/ansible/nste/scripts
-        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
         cp $(System.DefaultWorkingDirectory)/scripts/cleanup_stale_account.sh /etc/ansible/nste/scripts/
         chmod +x /etc/ansible/nste/scripts/cleanup_stale_account.sh
 
@@ -27,7 +27,7 @@ steps:
         # Clean up any previous status file
         rm -f /tmp/nste_email_status.txt
 
-        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yml \
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yaml \
           -i /etc/ansible/nste/hosts.ini \
           --vault-password-file /etc/ansible/nste/.vault_pass \
           -e "booking_username=$(bookingUsername) booking_id=$(bookingId) booking_user_email=$(bookingUserEmail)"
