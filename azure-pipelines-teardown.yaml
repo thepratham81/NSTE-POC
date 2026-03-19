@@ -1,4 +1,4 @@
-# azure-pipelines-teardown.yml
+# azure-pipelines-teardown.yaml
 trigger: none
 
 pool:
@@ -14,14 +14,14 @@ steps:
       targetType: inline
       script: |
         mkdir -p /etc/ansible/nste/playbooks
-        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
 
   - task: Bash@3
     displayName: 'Delete Temporary JIT Account'
     inputs:
       targetType: inline
       script: |
-        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/delete_temp_user.yml \
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/delete_temp_user.yaml \
           -i /etc/ansible/nste/hosts.ini \
           --vault-password-file /etc/ansible/nste/.vault_pass \
           -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
