@@ -1,12 +1,12 @@
 ---
-# delete_temp_user.yml
+# delete_temp_user.yaml
 # Usage: -e "booking_username=nste-jsmith booking_id=BK-001"
 
 - name: Delete temporary local user from NSTE Jumphost
   hosts: jumphost
   gather_facts: false
   vars_files:
-    - /etc/ansible/nste/vault.yml
+    - /etc/ansible/nste/vault.yaml
 
   tasks:
 

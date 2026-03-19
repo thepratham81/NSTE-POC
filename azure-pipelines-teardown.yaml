@@ -4,12 +4,6 @@ trigger: none
 pool:
   name: NSTE-Teardown
 
-variables:
-  - name: bookingUsername
-    value: ''
-  - name: bookingId
-    value: ''
-
 steps:
   - checkout: self
     displayName: 'Checkout NSTE Ansible playbooks from GitHub'
