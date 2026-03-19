@@ -34,29 +34,32 @@
         mode: '0600'
       delegate_to: localhost
 
-    - name: Send access credentials to user via Gmail
-      ansible.builtin.shell: |
-        python3 -c "
+    - name: Write email script to temp file
+      ansible.builtin.copy:
+        dest: /tmp/nste_send_email.py
+        mode: '0700'
+        content: |
           import smtplib
           from email.mime.text import MIMEText
-          
-          msg = MIMEText('''Your temporary access to the NSTE Jumphost has been provisioned.
-          
+
+          body = """Your temporary access to the NSTE Jumphost has been provisioned.
+
           Booking ID  : {{ booking_id }}
           Username    : {{ booking_username }}
           Password    : {{ temp_password }}
           Jumphost IP : 192.168.171.129
           RDP Port    : 3389
-          
+
           This account will be automatically deleted at the end of your booking window.
           Please save your work before the booking end time.
-          
-          Do not reply to this email.''')
-          
+
+          Do not reply to this email."""
+
+          msg = MIMEText(body)
           msg['Subject'] = 'NSTE JIT Access - Booking {{ booking_id }}'
           msg['From'] = '{{ vault_gmail_user }}'
           msg['To'] = '{{ booking_user_email }}'
-          
+
           server = smtplib.SMTP('smtp.gmail.com', 587)
           server.ehlo()
           server.starttls()
@@ -65,9 +68,18 @@
           server.sendmail('{{ vault_gmail_user }}', '{{ booking_user_email }}', msg.as_string())
           server.quit()
           print('EMAIL_SENT')
-        "
+      delegate_to: localhost
+
+    - name: Send access credentials to user via Gmail
+      ansible.builtin.shell: python3 /tmp/nste_send_email.py
       delegate_to: localhost
       register: email_result
+
+    - name: Remove email script temp file
+      ansible.builtin.file:
+        path: /tmp/nste_send_email.py
+        state: absent
+      delegate_to: localhost
 
     - name: Confirm email was sent
       ansible.builtin.debug:
