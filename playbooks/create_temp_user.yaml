@@ -35,37 +35,53 @@
       delegate_to: localhost
 
     - name: Send access credentials to user via Gmail
-      community.general.mail:
-        host: smtp.gmail.com
-        port: 587
-        username: "{{ vault_gmail_user }}"
-        password: "{{ vault_gmail_password }}"
-        to: "{{ booking_user_email }}"
-        subject: "NSTE JIT Access — Booking {{ booking_id }}"
-        body: |
-          Your temporary access to the NSTE Jumphost has been provisioned.
-
+      ansible.builtin.shell: |
+        python3 -c "
+          import smtplib
+          from email.mime.text import MIMEText
+          
+          msg = MIMEText('''Your temporary access to the NSTE Jumphost has been provisioned.
+          
           Booking ID  : {{ booking_id }}
           Username    : {{ booking_username }}
           Password    : {{ temp_password }}
           Jumphost IP : 192.168.171.129
           RDP Port    : 3389
-
+          
           This account will be automatically deleted at the end of your booking window.
           Please save your work before the booking end time.
-
-          Do not reply to this email.
-        secure: starttls
+          
+          Do not reply to this email.''')
+          
+          msg['Subject'] = 'NSTE JIT Access - Booking {{ booking_id }}'
+          msg['From'] = '{{ vault_gmail_user }}'
+          msg['To'] = '{{ booking_user_email }}'
+          
+          server = smtplib.SMTP('smtp.gmail.com', 587)
+          server.ehlo()
+          server.starttls()
+          server.ehlo()
+          server.login('{{ vault_gmail_user }}', '{{ vault_gmail_password }}')
+          server.sendmail('{{ vault_gmail_user }}', '{{ booking_user_email }}', msg.as_string())
+          server.quit()
+          print('EMAIL_SENT')
+        "
       delegate_to: localhost
+      register: email_result
 
-    - name: Gather localhost facts for timestamp
-      ansible.builtin.setup:
-        gather_subset: date_time
-      delegate_to: localhost
+    - name: Confirm email was sent
+      ansible.builtin.debug:
+        msg: "Email sent successfully to {{ booking_user_email }}"
+      when: "'EMAIL_SENT' in email_result.stdout"
+
+    - name: Fail if email was not sent
+      ansible.builtin.fail:
+        msg: "Email notification failed — check Gmail credentials in vault"
+      when: "'EMAIL_SENT' not in email_result.stdout"
 
     - name: Write email confirmation status file
       ansible.builtin.copy:
-        content: "EMAIL_SENT: {{ booking_user_email }} | Booking: {{ booking_id }} | Time: {{ ansible_date_time.iso8601 }}"
+        content: "EMAIL_SENT: {{ booking_user_email }} | Booking: {{ booking_id }}"
         dest: /tmp/nste_email_status.txt
         mode: '0600'
       delegate_to: localhost
