@@ -1,4 +1,4 @@
-# azure-pipelines-deploy.yaml
+# azure-pipelines-deploy.yml
 trigger: none
 
 pool:
@@ -15,19 +15,22 @@ steps:
       script: |
         mkdir -p /etc/ansible/nste/playbooks
         mkdir -p /etc/ansible/nste/scripts
-        cp $(System.DefaultWorkingDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
+        cp $(System.DefaultWorkingDirectory)/playbooks/*.yml /etc/ansible/nste/playbooks/
         cp $(System.DefaultWorkingDirectory)/scripts/cleanup_stale_account.sh /etc/ansible/nste/scripts/
         chmod +x /etc/ansible/nste/scripts/cleanup_stale_account.sh
 
   - task: Bash@3
-    displayName: 'Create Temporary JIT Account'
+    displayName: 'Create Temporary JIT Account and Notify User'
     inputs:
       targetType: inline
       script: |
-        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yaml \
+        # Clean up any previous status file
+        rm -f /tmp/nste_email_status.txt
+
+        ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/create_temp_user.yml \
           -i /etc/ansible/nste/hosts.ini \
           --vault-password-file /etc/ansible/nste/.vault_pass \
-          -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
+          -e "booking_username=$(bookingUsername) booking_id=$(bookingId) booking_user_email=$(bookingUserEmail)"
 
         TEMP_PASS=$(cat /tmp/nste_temp_password.txt)
         echo "##vso[task.setvariable variable=tempPassword;issecret=true]$TEMP_PASS"
@@ -36,11 +39,20 @@ steps:
           > /etc/ansible/nste/active_booking.json
 
   - task: Bash@3
-    displayName: 'Notify User with Credentials'
+    displayName: 'Confirm Email Notification Sent'
     inputs:
       targetType: inline
       script: |
-        curl -X POST '$(notifyWebhookUrl)' -H 'Content-Type: application/json' \
-          -d '{"email":"$(bookingUserEmail)","username":"$(bookingUsername)","password":"'"$TEMP_PASSWORD"'","jumphost":"192.168.171.129"}'
-    env:
-      TEMP_PASSWORD: $(tempPassword)
+        STATUS_FILE="/tmp/nste_email_status.txt"
+
+        if [ -f "$STATUS_FILE" ]; then
+          STATUS=$(cat "$STATUS_FILE")
+          echo "##[section]Email Confirmation"
+          echo "✅ Notification sent successfully"
+          echo "   $STATUS"
+          rm -f "$STATUS_FILE"
+        else
+          echo "##vso[task.logissue type=error]Email status file not found — notification may have failed."
+          echo "##vso[task.complete result=Failed;]Email confirmation failed."
+          exit 1
+        fi

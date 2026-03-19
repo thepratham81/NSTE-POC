@@ -1,12 +1,12 @@
 ---
-# create_temp_user.yml
-# Usage: -e "booking_username=nste-jsmith booking_id=BK-001"
+# create_temp_user.yaml
+# Usage: -e "booking_username=nste-jsmith booking_id=BK-001 booking_user_email=user@example.com"
 
 - name: Create temporary local user on NSTE Jumphost
   hosts: jumphost
   gather_facts: false
   vars_files:
-    - /etc/ansible/nste/vault.yml
+    - /etc/ansible/nste/vault.yaml
 
   tasks:
 
@@ -34,6 +34,42 @@
         mode: '0600'
       delegate_to: localhost
 
+    - name: Send access credentials to user via Gmail
+      community.general.mail:
+        host: smtp.gmail.com
+        port: 587
+        username: "{{ vault_gmail_user }}"
+        password: "{{ vault_gmail_password }}"
+        to: "{{ booking_user_email }}"
+        subject: "NSTE JIT Access — Booking {{ booking_id }}"
+        body: |
+          Your temporary access to the NSTE Jumphost has been provisioned.
+
+          Booking ID  : {{ booking_id }}
+          Username    : {{ booking_username }}
+          Password    : {{ temp_password }}
+          Jumphost IP : 192.168.171.129
+          RDP Port    : 3389
+
+          This account will be automatically deleted at the end of your booking window.
+          Please save your work before the booking end time.
+
+          Do not reply to this email.
+        secure: starttls
+      delegate_to: localhost
+
+    - name: Gather localhost facts for timestamp
+      ansible.builtin.setup:
+        gather_subset: date_time
+      delegate_to: localhost
+
+    - name: Write email confirmation status file
+      ansible.builtin.copy:
+        content: "EMAIL_SENT: {{ booking_user_email }} | Booking: {{ booking_id }} | Time: {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/nste_email_status.txt
+        mode: '0600'
+      delegate_to: localhost
+
     - name: Log account creation
       ansible.builtin.debug:
-        msg: "Temp account created: {{ booking_username }} | Booking: {{ booking_id }}"
+        msg: "Temp account created: {{ booking_username }} | Booking: {{ booking_id }} | Notified: {{ booking_user_email }}"
