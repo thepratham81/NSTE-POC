@@ -9,7 +9,7 @@ if [ "$NOW" -gt "$BOOKING_END" ]; then
   BOOKING_USER=$(jq -r '.booking_username' "$BOOKING_FILE")
   BOOKING_ID=$(jq -r '.booking_id' "$BOOKING_FILE")
   /opt/ansible-venv/bin/ansible-playbook \
-    /etc/ansible/nste/playbooks/delete_temp_user.yml \
+    /etc/ansible/nste/playbooks/delete_temp_user.yaml \
     -i /etc/ansible/nste/hosts.ini \
     --vault-password-file /etc/ansible/nste/.vault_pass \
     -e "booking_username=$BOOKING_USER booking_id=$BOOKING_ID"
