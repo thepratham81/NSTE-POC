@@ -17,13 +17,35 @@ steps:
         cp $(System.DefaultWorkingDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
 
   - task: Bash@3
-    displayName: 'Delete Temporary JIT Account'
+    displayName: 'Delete Temporary JIT Account and Notify User'
     inputs:
       targetType: inline
       script: |
+        # Clean up any previous teardown status file
+        rm -f /tmp/nste_teardown_email_status.txt
+
         ansible-playbook $(System.DefaultWorkingDirectory)/playbooks/delete_temp_user.yaml \
           -i /etc/ansible/nste/hosts.ini \
           --vault-password-file /etc/ansible/nste/.vault_pass \
-          -e "booking_username=$(bookingUsername) booking_id=$(bookingId)"
+          -e "booking_username=$(bookingUsername) booking_id=$(bookingId) booking_user_email=$(bookingUserEmail)"
 
         rm -f /etc/ansible/nste/active_booking.json
+
+  - task: Bash@3
+    displayName: 'Confirm Revocation Email Sent'
+    inputs:
+      targetType: inline
+      script: |
+        STATUS_FILE="/tmp/nste_teardown_email_status.txt"
+
+        if [ -f "$STATUS_FILE" ]; then
+          STATUS=$(cat "$STATUS_FILE")
+          echo "##[section]Email Confirmation"
+          echo "✅ Revocation notification sent successfully"
+          echo "   $STATUS"
+          rm -f "$STATUS_FILE"
+        else
+          echo "##vso[task.logissue type=error]Teardown email status file not found — notification may have failed."
+          echo "##vso[task.complete result=Failed;]Revocation email confirmation failed."
+          exit 1
+        fi

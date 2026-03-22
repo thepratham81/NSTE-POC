@@ -1,6 +1,6 @@
 ---
 # delete_temp_user.yaml
-# Usage: -e "booking_username=nste-jsmith booking_id=BK-001"
+# Usage: -e "booking_username=nste-jsmith booking_id=BK-001 booking_user_email=user@example.com"
 
 - name: Delete temporary local user from NSTE Jumphost
   hosts: jumphost
@@ -30,6 +30,68 @@
         state: absent
       delegate_to: localhost
 
+    - name: Write teardown email script to temp file
+      ansible.builtin.copy:
+        dest: /tmp/nste_send_teardown_email.py
+        mode: '0700'
+        content: |
+          import smtplib
+          from email.mime.text import MIMEText
+
+          body = """Your temporary access to the NSTE Jumphost has been revoked.
+
+          Booking ID  : {{ booking_id }}
+          Username    : {{ booking_username }}
+          Jumphost IP : 192.168.171.129
+
+          Your temporary account has been deleted and all active sessions have been terminated.
+          If you believe this is an error, please raise a new booking request.
+
+          Do not reply to this email."""
+
+          msg = MIMEText(body)
+          msg['Subject'] = 'NSTE JIT Access Revoked - Booking {{ booking_id }}'
+          msg['From'] = '{{ vault_gmail_user }}'
+          msg['To'] = '{{ booking_user_email }}'
+
+          server = smtplib.SMTP('smtp.gmail.com', 587)
+          server.ehlo()
+          server.starttls()
+          server.ehlo()
+          server.login('{{ vault_gmail_user }}', '{{ vault_gmail_password }}')
+          server.sendmail('{{ vault_gmail_user }}', '{{ booking_user_email }}', msg.as_string())
+          server.quit()
+          print('EMAIL_SENT')
+      delegate_to: localhost
+
+    - name: Send access revocation email via Gmail
+      ansible.builtin.shell: python3 /tmp/nste_send_teardown_email.py
+      delegate_to: localhost
+      register: email_result
+
+    - name: Remove teardown email script temp file
+      ansible.builtin.file:
+        path: /tmp/nste_send_teardown_email.py
+        state: absent
+      delegate_to: localhost
+
+    - name: Confirm revocation email was sent
+      ansible.builtin.debug:
+        msg: "Revocation email sent successfully to {{ booking_user_email }}"
+      when: "'EMAIL_SENT' in email_result.stdout"
+
+    - name: Fail if revocation email was not sent
+      ansible.builtin.fail:
+        msg: "Revocation email failed — check Gmail credentials in vault"
+      when: "'EMAIL_SENT' not in email_result.stdout"
+
+    - name: Write email confirmation status file
+      ansible.builtin.copy:
+        content: "EMAIL_SENT: {{ booking_user_email }} | Booking: {{ booking_id }} | Revoked"
+        dest: /tmp/nste_teardown_email_status.txt
+        mode: '0600'
+      delegate_to: localhost
+
     - name: Log deletion
       ansible.builtin.debug:
-        msg: "Temp account deleted: {{ booking_username }} | Booking: {{ booking_id }}"
+        msg: "Temp account deleted: {{ booking_username }} | Booking: {{ booking_id }} | Notified: {{ booking_user_email }}"
