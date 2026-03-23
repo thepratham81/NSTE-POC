@@ -35,7 +35,8 @@ steps:
         TEMP_PASS=$(cat /tmp/nste_temp_password.txt)
         echo "##vso[task.setvariable variable=tempPassword;issecret=true]$TEMP_PASS"
 
-        echo '{"booking_username":"'$(bookingUsername)'","booking_id":"'$(bookingId)'","end_epoch":'$(bookingEndEpoch)'}' \
+        # Write state file — includes booking_user_email so cron job can send revocation email
+        echo '{"booking_username":"'$(bookingUsername)'","booking_id":"'$(bookingId)'","end_epoch":'$(bookingEndEpoch)',"booking_user_email":"'$(bookingUserEmail)'"}' \
           > /etc/ansible/nste/active_booking.json
 
   - task: Bash@3
