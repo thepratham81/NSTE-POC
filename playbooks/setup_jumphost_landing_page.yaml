@@ -1,0 +1,69 @@
+---
+# playbooks/setup_jumphost_landing_page.yaml
+# Run ONCE during initial Jumphost provisioning.
+
+- name: Configure NSTE static landing page auto-launch on Jumphost
+  hosts: jumphost
+  gather_facts: false
+  vars_files:
+    - /etc/ansible/nste/vault.yaml
+
+  tasks:
+
+    - name: Ensure C:\NSTE directory exists
+      ansible.windows.win_file:
+        path: C:\NSTE
+        state: directory
+
+    - name: Set C:\NSTE permissions (admins write, users read-only)
+      ansible.windows.win_acl:
+        path: C:\NSTE
+        user: Administrators
+        rights: FullControl
+        type: allow
+        state: present
+        inherit: ContainerInherit, ObjectInherit
+
+    - name: Set read-only access for Users group on C:\NSTE
+      ansible.windows.win_acl:
+        path: C:\NSTE
+        user: Users
+        rights: ReadAndExecute
+        type: allow
+        state: present
+        inherit: ContainerInherit, ObjectInherit
+
+    - name: Copy static landing page to Jumphost
+      ansible.windows.win_copy:
+        src: ../files/nste-landing.html
+        dest: C:\NSTE\nste-landing.html
+
+    - name: Register Chrome auto-launch scheduled task
+      ansible.windows.win_scheduled_task:
+        name: NSTE-LandingPage
+        path: \NSTE
+        description: "Opens NSTE landing page in Chrome on user logon"
+        state: present
+        enabled: true
+        actions:
+          - path: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+            arguments: "--app=file:///C:/NSTE/nste-landing.html"
+        triggers:
+          - type: logon
+        principal:
+          group_id: BUILTIN\Remote Desktop Users
+          run_level: limited
+        settings:
+          allow_start_if_on_batteries: true
+          stop_if_going_on_batteries: false
+          start_when_available: true
+          execution_time_limit: PT1M
+
+    - name: Verify scheduled task was created
+      ansible.windows.win_shell: |
+        Get-ScheduledTask -TaskPath "\NSTE\" | Select-Object TaskName, State | ConvertTo-Json
+      register: task_check
+
+    - name: Log scheduled task status
+      ansible.builtin.debug:
+        msg: "Scheduled task status: {{ task_check.stdout }}"

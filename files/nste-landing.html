@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NSTE — Network System Test Environment</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-card: #1a2236;
+    --bg-card-hover: #1f2a42;
+    --border: #2a3654;
+    --border-accent: #3b82f6;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-green: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-purple: #8b5cf6;
+    --glow-blue: rgba(59, 130, 246, 0.15);
+    --glow-cyan: rgba(6, 182, 212, 0.1);
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background grid effect ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, var(--glow-blue) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, var(--glow-cyan) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem 2.5rem 3rem;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.5rem;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .logo-mark {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #fff;
+    letter-spacing: -0.5px;
+    box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
+    position: relative;
+  }
+
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 13px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .header-title h1 {
+    font-family: var(--mono);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-title p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .env-badge {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--accent-green);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.1); }
+    50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.2); }
+  }
+
+  .timestamp {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  /* ── Booking Status Banner ── */
+  .booking-status {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.75rem;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .booking-status::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-cyan));
+    border-radius: 3px 0 0 3px;
+  }
+
+  .status-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .status-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    position: relative;
+  }
+
+  .status-dot.active {
+    background: var(--accent-green);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  }
+
+  .status-dot.active::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid rgba(16, 185, 129, 0.3);
+    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes ping {
+    75%, 100% { transform: scale(1.8); opacity: 0; }
+  }
+
+  .status-dot.inactive {
+    background: var(--text-muted);
+  }
+
+  .status-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .booking-details h3 {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .booking-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+  }
+
+  .booking-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .booking-meta-item svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+  }
+
+  .booking-meta-item .value {
+    font-family: var(--mono);
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .booking-timer {
+    text-align: right;
+  }
+
+  .timer-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.35rem;
+  }
+
+  .timer-value {
+    font-family: var(--mono);
+    font-size: 1.65rem;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    letter-spacing: 1px;
+  }
+
+  /* ── Quick Links Grid ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .quick-links {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .link-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.35rem 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .link-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(59, 130, 246, 0.1);
+  }
+
+  .link-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .link-card-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .link-card-icon.blue { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
+  .link-card-icon.cyan { background: rgba(6, 182, 212, 0.12); color: var(--accent-cyan); }
+  .link-card-icon.amber { background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); }
+  .link-card-icon.purple { background: rgba(139, 92, 246, 0.12); color: var(--accent-purple); }
+  .link-card-icon.green { background: rgba(16, 185, 129, 0.12); color: var(--accent-green); }
+  .link-card-icon.red { background: rgba(239, 68, 68, 0.12); color: var(--accent-red); }
+
+  .link-card h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .link-card p {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .link-card .arrow {
+    position: absolute;
+    top: 1.35rem;
+    right: 1.25rem;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all 0.25s ease;
+    color: var(--accent-blue);
+  }
+
+  .link-card:hover .arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* ── Two Column Bottom ── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.75rem;
+  }
+
+  .panel h3 {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .panel h3 svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent-amber);
+  }
+
+  /* ── Topology Cards ── */
+  .topology-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .topology-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .topology-item:hover {
+    background: rgba(255,255,255,0.04);
+  }
+
+  .topology-name {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .topology-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .topology-icon.store { background: var(--accent-blue); }
+  .topology-icon.dc { background: var(--accent-purple); }
+  .topology-icon.cfc { background: var(--accent-cyan); }
+  .topology-icon.office { background: var(--accent-amber); }
+
+  .topology-name span {
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+
+  .topology-desc {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+
+  /* ── Rules List ── */
+  .rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    counter-reset: rule;
+  }
+
+  .rule-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    counter-increment: rule;
+  }
+
+  .rule-item:last-child { border-bottom: none; }
+
+  .rule-num {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .rule-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .rule-text strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-left {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .footer-right {
+    display: flex;
+    gap: 1.5rem;
+  }
+
+  .footer-link {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-link:hover { color: var(--accent-blue); }
+
+  /* ── Fade-in animation ── */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .fade-in:nth-child(2) { animation-delay: 0.1s; }
+  .fade-in:nth-child(3) { animation-delay: 0.15s; }
+  .fade-in:nth-child(4) { animation-delay: 0.2s; }
+  .fade-in:nth-child(5) { animation-delay: 0.25s; }
+  .fade-in:nth-child(6) { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══ Header ═══ -->
+  <header class="header fade-in">
+    <div class="header-left">
+      <div class="logo-mark">N</div>
+      <div class="header-title">
+        <h1>NSTE</h1>
+        <p>Network System Test Environment</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="env-badge">● Environment Online</span>
+      <span class="timestamp" id="clock"></span>
+    </div>
+  </header>
+
+  <!-- ═══ Active Booking Status ═══ -->
+  <section class="booking-status fade-in">
+    <div class="status-indicator">
+      <div class="status-dot active"></div>
+      <span class="status-label">Active</span>
+    </div>
+    <div class="booking-details">
+      <h3>Current Booking</h3>
+      <div class="booking-meta">
+        <div class="booking-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="value" id="bookedUser"><!-- Populated by automation --></span>
+        </div>
+        <div class="booking-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Topology: <span class="value" id="activeTopology"><!-- Populated by automation --></span>
+        </div>
+        <div class="booking-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Booked: <span class="value" id="bookingWindow"><!-- Populated by automation --></span>
+        </div>
+      </div>
+    </div>
+    <div class="booking-timer">
+      <div class="timer-label">Time Remaining</div>
+      <div class="timer-value" id="countdown">--:--:--</div>
+    </div>
+  </section>
+
+  <!-- ═══ Quick Links ═══ -->
+  <div class="fade-in">
+    <div class="section-label">Quick Access</div>
+    <div class="quick-links">
+
+      <a href="#EVE_NG_URL" class="link-card" target="_blank">
+        <div class="link-card-icon blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <h4>EVE-NG Console</h4>
+        <p>Access lab topology and virtual devices</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <a href="#SERVICENOW_CATALOG_URL" class="link-card" target="_blank">
+        <div class="link-card-icon amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <h4>Book Environment</h4>
+        <p>ServiceNow catalog — book or extend a session</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <a href="#CONFLUENCE_SOP_URL" class="link-card" target="_blank">
+        <div class="link-card-icon purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </div>
+        <h4>SOPs &amp; Runbooks</h4>
+        <p>Procedures, troubleshooting and governance docs</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <a href="#GOVERNANCE_DOC_URL" class="link-card" target="_blank">
+        <div class="link-card-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h4>Governance</h4>
+        <p>RBAC policies, booking rules and environment hygiene</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <a href="#AZURE_DEVOPS_URL" class="link-card" target="_blank">
+        <div class="link-card-icon cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        </div>
+        <h4>Azure DevOps</h4>
+        <p>Pipelines, automation runs and deployment status</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+      <a href="#TOPOLOGY_GUIDE_URL" class="link-card" target="_blank">
+        <div class="link-card-icon red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        </div>
+        <h4>Topology Reference</h4>
+        <p>Store, DC, CFC and Support Office topology guides</p>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ═══ Bottom Grid: Topologies + Rules ═══ -->
+  <div class="bottom-grid">
+
+    <div class="panel fade-in">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Available Topologies
+      </h3>
+      <div class="topology-list">
+        <div class="topology-item">
+          <div class="topology-name">
+            <div class="topology-icon store"></div>
+            <span>Store (Supermarket)</span>
+          </div>
+          <span class="topology-desc">SD-WAN, Switching, WiFi, ISE</span>
+        </div>
+        <div class="topology-item">
+          <div class="topology-name">
+            <div class="topology-icon dc"></div>
+            <span>Distribution Centre</span>
+          </div>
+          <span class="topology-desc">DC fabric, WAN edge, core routing</span>
+        </div>
+        <div class="topology-item">
+          <div class="topology-name">
+            <div class="topology-icon cfc"></div>
+            <span>CFC</span>
+          </div>
+          <span class="topology-desc">Customer Fulfilment Centre topology</span>
+        </div>
+        <div class="topology-item">
+          <div class="topology-name">
+            <div class="topology-icon office"></div>
+            <span>Support Office</span>
+          </div>
+          <span class="topology-desc">Campus LAN, wireless, security</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel fade-in">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Environment Rules
+      </h3>
+      <div class="rules-list">
+        <div class="rule-item">
+          <div class="rule-num">1</div>
+          <div class="rule-text"><strong>24-hour max booking.</strong> Sessions auto-destroy at expiry. Extend via ServiceNow before time runs out.</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-num">2</div>
+          <div class="rule-text"><strong>4-hour idle timeout.</strong> Inactive topologies are automatically torn down to free resources.</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-num">3</div>
+          <div class="rule-text"><strong>Save before you leave.</strong> Export configs from running nodes before your session ends — all state is destroyed on teardown.</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-num">4</div>
+          <div class="rule-text"><strong>One booking at a time.</strong> The environment supports a single concurrent user. Check availability before booking.</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-num">5</div>
+          <div class="rule-text"><strong>No production data.</strong> Do not load production configs, credentials or sensitive data into the test environment.</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-num">6</div>
+          <div class="rule-text"><strong>Report issues.</strong> Log faults via the NSTE support channel — don't attempt to fix platform-level issues yourself.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer fade-in">
+    <div class="footer-left">
+      NSTE v1.0 &nbsp;·&nbsp; Network Engineering &nbsp;·&nbsp; Managed by Network Architecture Team
+    </div>
+    <div class="footer-right">
+      <a href="#SUPPORT_CHANNEL" class="footer-link">Support</a>
+      <a href="#CONFLUENCE_SOP_URL" class="footer-link">Documentation</a>
+      <a href="#FEEDBACK_URL" class="footer-link">Feedback</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // ── Live Clock ──
+  function updateClock() {
+    const now = new Date();
+    const opts = { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+    document.getElementById('clock').textContent = now.toLocaleDateString('en-AU', opts);
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ══════════════════════════════════════════════════════════════════
+  //  BOOKING DATA — Populated by automation (Ansible / deploy script)
+  //
+  //  During the deploy workflow, Ansible writes a small JSON file
+  //  (e.g., C:\NSTE\booking.json) containing booking details.
+  //  This script reads from that file via fetch() on page load.
+  //
+  //  Expected JSON structure:
+  //  {
+  //    "user": "j.smith",
+  //    "topology": "Store (Supermarket)",
+  //    "start": "2026-03-17T09:00:00+11:00",
+  //    "end":   "2026-03-17T17:00:00+11:00"
+  //  }
+  //
+  //  For local testing, the fallback values below are shown.
+  // ══════════════════════════════════════════════════════════════════
+
+  const BOOKING_FILE = 'booking.json';  // Adjust path as needed
+
+  async function loadBooking() {
+    let booking;
+    try {
+      const resp = await fetch(BOOKING_FILE);
+      if (resp.ok) booking = await resp.json();
+    } catch(e) { /* file not available — use placeholders */ }
+
+    if (booking) {
+      document.getElementById('bookedUser').textContent = booking.user || '—';
+      document.getElementById('activeTopology').textContent = booking.topology || '—';
+
+      const start = new Date(booking.start);
+      const end = new Date(booking.end);
+      const fmt = (d) => d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false });
+      document.getElementById('bookingWindow').textContent = `${fmt(start)} – ${fmt(end)}`;
+
+      // Countdown
+      function tick() {
+        const diff = end - Date.now();
+        if (diff <= 0) {
+          document.getElementById('countdown').textContent = 'EXPIRED';
+          document.getElementById('countdown').style.color = 'var(--accent-red)';
+          return;
+        }
+        const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
+        const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+        const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+        document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+      }
+      tick();
+      setInterval(tick, 1000);
+    } else {
+      // Placeholder when no booking data file exists
+      document.getElementById('bookedUser').textContent = 'No active booking';
+      document.getElementById('activeTopology').textContent = '—';
+      document.getElementById('bookingWindow').textContent = '—';
+      document.getElementById('countdown').textContent = '--:--:--';
+    }
+  }
+
+  loadBooking();
+</script>
+</body>
+</html>
