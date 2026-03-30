@@ -38,6 +38,32 @@
         src: ../files/nste-landing.html
         dest: C:\NSTE\nste-landing.html
 
+    - name: Download Chrome installer
+      ansible.windows.win_get_url:
+        url: https://dl.google.com/chrome/install/latest/chrome_installer.exe
+        dest: C:\Windows\Temp\chrome_installer.exe
+
+    - name: Install Chrome silently
+      ansible.windows.win_package:
+        path: C:\Windows\Temp\chrome_installer.exe
+        arguments: /silent /install
+        state: present
+
+    - name: Remove Chrome installer
+      ansible.windows.win_file:
+        path: C:\Windows\Temp\chrome_installer.exe
+        state: absent
+
+    - name: Verify Chrome was installed successfully
+      ansible.windows.win_stat:
+        path: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+      register: chrome_stat
+
+    - name: Fail if Chrome installation was unsuccessful
+      ansible.builtin.fail:
+        msg: "Chrome was not found after installation — check installer logs on the Jumphost"
+      when: not chrome_stat.stat.exists
+
     - name: Register Chrome auto-launch scheduled task
       community.windows.win_scheduled_task:
         name: NSTE-LandingPage
