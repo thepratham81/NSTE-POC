@@ -26,6 +26,7 @@
         groups:
           - Remote Desktop Users
           - Users
+        groups_action: add        # ensures groups are added, not replaced
 
     - name: Write password to temp file for pipeline to collect
       ansible.builtin.copy:

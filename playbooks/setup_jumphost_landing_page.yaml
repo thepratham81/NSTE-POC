@@ -64,26 +64,38 @@
         msg: "Chrome was not found after installation — check installer logs on the Jumphost"
       when: not chrome_stat.stat.exists
 
-    - name: Register Chrome auto-launch scheduled task
-      community.windows.win_scheduled_task:
-        name: NSTE-LandingPage
-        path: \NSTE
-        description: "Opens NSTE landing page in Chrome on user logon"
-        state: present
-        enabled: true
-        actions:
-          - path: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-            arguments: "--app=file:///C:/NSTE/nste-landing.html"
-        triggers:
-          - type: logon
-        principal:
-          group_id: BUILTIN\Remote Desktop Users
-          run_level: limited
-        settings:
-          allow_start_if_on_batteries: true
-          stop_if_going_on_batteries: false
-          start_when_available: true
-          execution_time_limit: PT1M
+    - name: Register Chrome auto-launch scheduled task via PowerShell
+      ansible.windows.win_shell: |
+        $action = New-ScheduledTaskAction `
+          -Execute "cmd.exe" `
+          -Argument '/c ping -n 6 127.0.0.1 >nul && "C:\Program Files\Google\Chrome\Application\chrome.exe" --app=file:///C:/NSTE/nste-landing.html'
+
+        $trigger = New-ScheduledTaskTrigger -AtLogOn
+
+        $principal = New-ScheduledTaskPrincipal `
+          -GroupId "BUILTIN\Remote Desktop Users" `
+          -RunLevel Limited
+
+        $settings = New-ScheduledTaskSettingsSet `
+          -AllowStartIfOnBatteries `
+          -DontStopIfGoingOnBatteries `
+          -StartWhenAvailable `
+          -ExecutionTimeLimit (New-TimeSpan -Minutes 1)
+
+        Unregister-ScheduledTask `
+          -TaskName "NSTE-LandingPage" `
+          -TaskPath "\NSTE\" `
+          -Confirm:$false `
+          -ErrorAction SilentlyContinue
+
+        Register-ScheduledTask `
+          -TaskName "NSTE-LandingPage" `
+          -TaskPath "\NSTE\" `
+          -Action $action `
+          -Trigger $trigger `
+          -Principal $principal `
+          -Settings $settings `
+          -Description "Opens NSTE landing page in Chrome on user logon"
 
     - name: Confirm scheduled task registration complete
       ansible.builtin.debug:
