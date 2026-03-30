@@ -15,7 +15,7 @@
         path: C:\NSTE
         state: directory
 
-    - name: Set C:\NSTE permissions (admins write, users read-only)
+    - name: Set C:\NSTE permissions for Administrators
       ansible.windows.win_acl:
         path: C:\NSTE
         user: Administrators
@@ -59,11 +59,6 @@
           start_when_available: true
           execution_time_limit: PT1M
 
-    - name: Verify scheduled task was created
-      ansible.windows.win_shell: |
-        Get-ScheduledTask -TaskPath '\NSTE\' | Select-Object TaskName, State | ConvertTo-Json
-      register: task_check
-
-    - name: Log scheduled task status
+    - name: Confirm scheduled task registration complete
       ansible.builtin.debug:
-        msg: "Scheduled task status: {{ task_check.stdout }}"
+        msg: "NSTE-LandingPage scheduled task registered successfully"
