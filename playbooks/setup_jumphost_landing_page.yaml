@@ -61,7 +61,7 @@
 
     - name: Verify scheduled task was created
       ansible.windows.win_shell: |
-        Get-ScheduledTask -TaskPath "\NSTE\" | Select-Object TaskName, State | ConvertTo-Json
+        Get-ScheduledTask -TaskPath '\NSTE\' | Select-Object TaskName, State | ConvertTo-Json
       register: task_check
 
     - name: Log scheduled task status
