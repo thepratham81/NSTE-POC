@@ -1,0 +1,24 @@
+trigger: none  # Manual trigger only for this test pipeline
+
+pool:
+  name: NSTE-Deploy   # rhel9-agent-01
+
+steps:
+
+  - script: |
+      echo "=== EVE-NG SDK version ==="
+      /opt/eveng-venv/bin/eve-ng --version
+
+      echo "=== Python version ==="
+      /opt/eveng-venv/bin/python --version
+
+      echo "=== Installed packages ==="
+      /opt/eveng-venv/bin/pip show eve-ng chromaterm
+
+      echo "=== eve-ng SDK import test ==="
+      /opt/eveng-venv/bin/python -c "import eve_ng; print('eve-ng import OK:', eve_ng.__version__)"
+
+      echo "=== chromaterm import test ==="
+      /opt/eveng-venv/bin/python -c "import chromaterm; print('chromaterm import OK')"
+    displayName: 'Smoke test - eve-ng and chromaterm'
+    failOnStderr: false
