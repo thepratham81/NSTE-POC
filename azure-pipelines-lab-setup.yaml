@@ -1,0 +1,67 @@
+---
+# azure-pipelines-lab-setup.yaml
+#
+# EVE-NG Lab Setup Pipeline
+# Stage 1 - Create:  Provisions the lab from topology file
+# Stage 2 - Start:   Boots all lab nodes
+#
+# Trigger: Manual only.
+# Pool: NSTE-Deploy (rhel9-agent-01)
+
+trigger: none
+
+variables:
+  ANSIBLE_CFG: /home/auto/NSTE-POC/ansible.cfg
+  VAULT_PASS_FILE: /etc/ansible/nste/.vault_pass
+  EVE_NG_LAB_PATH: /Automation_Topology_POC.unl
+  ANSIBLE_BIN: /opt/ansible-venv/bin/ansible-playbook
+
+stages:
+
+  # ─────────────────────────────────────────────
+  # STAGE 1 — CREATE
+  # ─────────────────────────────────────────────
+  - stage: Create_Lab
+    displayName: "Stage 1 — Create Lab"
+    pool:
+      name: NSTE-Deploy
+
+    jobs:
+      - job: create_lab
+        displayName: "Create lab from topology"
+        steps:
+          - checkout: self
+
+          - script: |
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_create.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_topology_file=$(Build.SourcesDirectory)/files/automation-topology-poc.yaml"
+            displayName: "Run eve_ng_lab_create.yaml"
+            workingDirectory: $(Build.SourcesDirectory)
+
+  # ─────────────────────────────────────────────
+  # STAGE 2 — START
+  # ─────────────────────────────────────────────
+  - stage: Start_Lab
+    displayName: "Stage 2 — Start Lab"
+    dependsOn: Create_Lab
+    condition: succeeded()
+    pool:
+      name: NSTE-Deploy
+
+    jobs:
+      - job: start_lab
+        displayName: "Start all lab nodes"
+        steps:
+          - checkout: self
+
+          - script: |
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_start.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_lab_path=$(EVE_NG_LAB_PATH)"
+            displayName: "Run eve_ng_lab_start.yaml"
+            workingDirectory: $(Build.SourcesDirectory)

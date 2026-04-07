@@ -1,0 +1,67 @@
+---
+# azure-pipelines-lab-teardown.yaml
+#
+# EVE-NG Lab Teardown Pipeline
+# Stage 1 - Stop:    Shuts down all lab nodes
+# Stage 2 - Delete:  Destroys the lab permanently
+#
+# Trigger: Manual only.
+# Pool: NSTE-Teardown (rhel9-agent-02)
+
+trigger: none
+
+variables:
+  ANSIBLE_CFG: /home/auto/NSTE-POC/ansible.cfg
+  VAULT_PASS_FILE: /etc/ansible/nste/.vault_pass
+  EVE_NG_LAB_PATH: /Automation_Topology_POC.unl
+  ANSIBLE_BIN: /opt/ansible-venv/bin/ansible-playbook
+
+stages:
+
+  # ─────────────────────────────────────────────
+  # STAGE 1 — STOP  (manual approval required)
+  # ─────────────────────────────────────────────
+  - stage: Stop_Lab
+    displayName: "Stage 1 — Stop Lab"
+    pool:
+      name: NSTE-Teardown
+
+    jobs:
+      - job: stop_lab
+        displayName: "Stop all lab nodes"
+        steps:
+          - checkout: self
+
+          - script: |
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_stop.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_lab_path=$(EVE_NG_LAB_PATH)"
+            displayName: "Run eve_ng_lab_stop.yaml"
+            workingDirectory: $(Build.SourcesDirectory)
+
+  # ─────────────────────────────────────────────
+  # STAGE 2 — DELETE  (manual approval required)
+  # ─────────────────────────────────────────────
+  - stage: Delete_Lab
+    displayName: "Stage 2 — Delete Lab"
+    dependsOn: Stop_Lab
+    condition: succeeded()
+    pool:
+      name: NSTE-Teardown
+
+    jobs:
+      - job: delete_lab
+        displayName: "Delete lab permanently"
+        steps:
+          - checkout: self
+
+          - script: |
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_delete.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_lab_path=$(EVE_NG_LAB_PATH)"
+            displayName: "Run eve_ng_lab_delete.yaml"
+            workingDirectory: $(Build.SourcesDirectory)
