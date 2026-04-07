@@ -16,7 +16,7 @@ steps:
       /opt/eveng-venv/bin/pip show eve-ng chromaterm
 
       echo "=== eve-ng SDK import test ==="
-      /opt/eveng-venv/bin/python -c "import eve_ng; print('eve-ng import OK:', eve_ng.__version__)"
+      /opt/eveng-venv/bin/python -c "import eve-ng; print('eve-ng import OK:', eve_ng.__version__)"
 
       echo "=== chromaterm import test ==="
       /opt/eveng-venv/bin/python -c "import chromaterm; print('chromaterm import OK')"
