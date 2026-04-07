@@ -1,0 +1,65 @@
+---
+name: Automation_Topology_POC
+description: Automation_Topology_POC
+path: "/"
+nodes:
+  # vIOS1 router
+  - name: vIOS1
+    template: vios
+    image: vios-adventerprisek9-m-15.5.3-VIOS1
+    node_type: qemu
+    ethernet: 8
+    left: 774
+    top: 264
+  # vIOS2 router
+  - name: vIOS2
+    template: vios
+    image: vios-adventerprisek9-m-15.5.3-VIOS2
+    node_type: qemu
+    ethernet: 8
+    left: 789
+    top: 531
+  # vIOS3 router
+  - name: vIOS3
+    template: vios
+    image: vios-adventerprisek9-m-15.5.3-VIOS3
+    node_type: qemu
+    ethernet: 8
+    left: 492
+    top: 387
+  # vIOS4 router
+  - name: vIOS4
+    template: vios
+    image: vios-adventerprisek9-m-15.5.3-VIOS4
+    node_type: qemu
+    ethernet: 8
+    left: 1053
+    top: 390
+  # TestClient
+  - name: TestClient
+    template: linux
+    image: linux-ubuntu-mate-20.04
+    node_type: qemu
+    ethernet: 1
+    left: 243
+    top: 396
+    console: vnc
+# clouds/pnets
+networks:
+  - name: Internet
+    network_type: pnet0
+    visibility: 1
+    left: 1365
+    top: 402
+links:
+  # Connections to networks (pnets)
+  network:
+    - {"src": "vIOS4", "src_label": "Gi0/2", "dst": "Internet"}
+
+  # Connections between devices
+  node:
+    - {"src": "vIOS3", "src_label": "Gi0/1", "dst": "TestClient", "dst_label": "e0"}
+    - {"src": "vIOS3", "src_label": "Gi0/0", "dst": "vIOS1", "dst_label": "Gi0/0"}
+    - {"src": "vIOS3", "src_label": "Gi0/2", "dst": "vIOS2", "dst_label": "Gi0/2"}
+    - {"src": "vIOS1", "src_label": "Gi0/1", "dst": "vIOS4", "dst_label": "Gi0/1"}
+    - {"src": "vIOS2", "src_label": "Gi0/0", "dst": "vIOS4", "dst_label": "Gi0/0"}

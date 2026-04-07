@@ -1,0 +1,59 @@
+---
+# eve_ng_lab_create.yaml
+# Creates the EVE-NG lab from a topology file using the eve-ng SDK CLI.
+# Runs locally on the RHEL automation VM (connection: local).
+#
+# Required vault variables (in /etc/ansible/nste/vault.yaml):
+#   vault_eve_ng_host      - EVE-NG server IP/hostname
+#   vault_eve_ng_username  - EVE-NG admin username
+#   vault_eve_ng_password  - EVE-NG admin password
+#
+# Optional extra vars (override at runtime via -e):
+#   eve_ng_topology_file   - Absolute path to the topology YAML file
+#                            Default: files/automation-topology-poc.yaml
+#                            (relative to the repo root, resolved at runtime)
+
+- name: EVE-NG | Create Lab from Topology
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    eve_ng_host: "{{ vault_eve_ng_host }}"
+    eve_ng_username: "{{ vault_eve_ng_username }}"
+    eve_ng_password: "{{ vault_eve_ng_password }}"
+    # Resolved relative to this playbook's location (playbooks/ → ../files/)
+    eve_ng_topology_file: "{{ playbook_dir }}/../files/automation-topology-poc.yaml"
+
+  tasks:
+    - name: Verify topology file exists
+      ansible.builtin.stat:
+        path: "{{ eve_ng_topology_file }}"
+      register: topology_stat
+
+    - name: Fail if topology file is missing
+      ansible.builtin.fail:
+        msg: "Topology file not found at: {{ eve_ng_topology_file }}"
+      when: not topology_stat.stat.exists
+
+    - name: Create lab from topology
+      ansible.builtin.command:
+        argv:
+          - eve-ng
+          - --host
+          - "{{ eve_ng_host }}"
+          - --username
+          - "{{ eve_ng_username }}"
+          - --password
+          - "{{ eve_ng_password }}"
+          - lab
+          - create-from-topology
+          - -t
+          - "{{ eve_ng_topology_file }}"
+      register: create_result
+      no_log: true  # Suppress output to avoid leaking credentials in logs
+
+    - name: Show create output
+      ansible.builtin.debug:
+        msg: "{{ create_result.stdout_lines }}"
+      when: create_result.stdout_lines | length > 0
