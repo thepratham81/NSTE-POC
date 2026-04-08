@@ -51,7 +51,7 @@
           - -t
           - "{{ eve_ng_topology_file }}"
       register: create_result
-      no_log: true  # Suppress output to avoid leaking credentials in logs
+      no_log: false  # Suppress output to avoid leaking credentials in logs
 
     - name: Show create output
       ansible.builtin.debug:
