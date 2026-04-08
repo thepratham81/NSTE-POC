@@ -22,7 +22,7 @@ stages:
   # STAGE 1: STOP
   # ─────────────────────────────────────────────
   - stage: Stop_Lab
-    displayName: "Stage 1 — Stop Lab"
+    displayName: "Stage 1: Stop Lab"
     pool:
       name: NSTE-Teardown
 
@@ -45,7 +45,7 @@ stages:
   # STAGE 2: DELETE
   # ─────────────────────────────────────────────
   - stage: Delete_Lab
-    displayName: "Stage 2 — Delete Lab"
+    displayName: "Stage 2: Delete Lab"
     dependsOn: Stop_Lab
     condition: succeeded()
     pool:
