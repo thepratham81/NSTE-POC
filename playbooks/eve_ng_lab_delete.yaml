@@ -2,20 +2,14 @@
 # eve_ng_lab_delete.yaml
 # Permanently deletes the EVE-NG lab and all its nodes.
 # Runs locally on the RHEL automation VM (connection: local).
-#
-# Required vault variables (in /etc/ansible/nste/vault.yaml):
-#   vault_eve_ng_host      - EVE-NG server IP/hostname
-#   vault_eve_ng_username  - EVE-NG admin username
-#   vault_eve_ng_password  - EVE-NG admin password
-#
-# Optional extra vars (override at runtime via -e):
-#   eve_ng_lab_path        - Full UNL path on EVE-NG server
-#                            Default: /Automation_Topology_POC.unl
 
 - name: EVE-NG | Delete Lab
   hosts: localhost
   connection: local
   gather_facts: false
+
+  vars_files:
+    - /etc/ansible/nste/vault.yaml
 
   vars:
     eve_ng_host: "{{ vault_eve_ng_host }}"
@@ -39,7 +33,7 @@
           - --path
           - "{{ eve_ng_lab_path }}"
       register: delete_result
-      no_log: true
+      no_log: false
 
     - name: Show delete output
       ansible.builtin.debug:
