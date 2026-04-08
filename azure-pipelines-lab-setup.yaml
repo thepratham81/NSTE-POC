@@ -19,10 +19,10 @@ variables:
 stages:
 
   # ─────────────────────────────────────────────
-  # STAGE 1 — CREATE
+  # STAGE 1: CREATE
   # ─────────────────────────────────────────────
   - stage: Create_Lab
-    displayName: "Stage 1 — Create Lab"
+    displayName: "Stage 1: Create Lab"
     pool:
       name: NSTE-Deploy
 
@@ -42,10 +42,10 @@ stages:
             workingDirectory: $(Build.SourcesDirectory)
 
   # ─────────────────────────────────────────────
-  # STAGE 2 — START
+  # STAGE 2: START
   # ─────────────────────────────────────────────
   - stage: Start_Lab
-    displayName: "Stage 2 — Start Lab"
+    displayName: "Stage 2: Start Lab"
     dependsOn: Create_Lab
     condition: succeeded()
     pool:
