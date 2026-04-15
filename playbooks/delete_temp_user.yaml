@@ -32,8 +32,8 @@
 
     - name: Write teardown email script to temp file
       ansible.builtin.copy:
-        dest: /tmp/nste_send_teardown_email.py
-        mode: '0700'
+        dest: /tmp/nste_send_teardown_email.txt
+        mode: '0600'
         content: |
           import smtplib
           from email.mime.text import MIMEText
