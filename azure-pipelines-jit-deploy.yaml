@@ -1,4 +1,4 @@
-# azure-pipelines-deploy.yaml
+# azure-pipelines-jit-deploy.yaml
 trigger: none
 
 pool:

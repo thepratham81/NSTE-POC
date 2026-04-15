@@ -1,4 +1,4 @@
-# azure-pipelines-teardown.yaml
+# azure-pipelines-jit-teardown.yaml
 trigger: none
 
 pool:
