@@ -181,7 +181,7 @@ stages:
               script: |
                 ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
                 $(ANSIBLE_BIN) \
-                  playbooks/eve_ng_lab_start.yaml \
+                  playbooks/eve_ng_lab_start_latest.yaml \
                   --vault-password-file $(VAULT_PASS_FILE) \
                   -e "eve_ng_lab_path=$(labPath)"
             workingDirectory: $(Build.SourcesDirectory)
