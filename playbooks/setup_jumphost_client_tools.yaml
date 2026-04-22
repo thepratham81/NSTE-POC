@@ -1,12 +1,20 @@
 ---
 # setup_jumphost_client_tools.yaml
 #
-# Installs the EVE-NG Windows Client Pack on the Jumphost.
+# Installs the EVE-NG Windows Client Pack 3.0 on the Jumphost.
 # This is a ONE-TIME infrastructure setup playbook — run manually or after
 # a Jumphost rebuild. It is NOT part of the per-booking deploy pipeline.
 #
 # The client pack registers URI protocol handlers (telnet://, vnc://, capture://)
 # so that node clicks in the EVE-NG web UI open the correct local terminal/tool.
+#
+# WHY SCHEDULED TASK INSTEAD OF DIRECT EXECUTION:
+# WinRM runs processes in Session 0 (non-interactive background session).
+# GUI-based installers that require interactive context will hang indefinitely
+# when launched directly via win_shell over WinRM. A Scheduled Task with an
+# Interactive logon type runs in a proper user session, allowing the installer
+# to complete correctly. Ansible polls the task state every 15 seconds until
+# it finishes, keeping the automation fully hands-off.
 #
 # Run with:
 #   ANSIBLE_CONFIG=/home/auto/NSTE-POC/ansible.cfg \
@@ -28,59 +36,190 @@
     eve_ng_client_pack_url: "https://customers.eve-ng.net/EVE-NG-Win-Client-Pack-3.0.exe"
     eve_ng_client_pack_dest: 'C:\Windows\Temp\EVE-NG-Win-Client-Pack-3.0.exe'
 
-    # Sentinel file written after a successful install.
-    # Used to make this playbook idempotent — won't re-install if already present.
+    # Scheduled task name used to run the installer in an interactive session.
+    # Unregistered automatically after install completes.
+    eve_ng_install_task_name: "EVE-NG-Client-Install"
+
+    # Sentinel file written by Ansible after a verified successful install.
+    # Guards against re-installation on subsequent playbook runs.
     eve_ng_install_sentinel: 'C:\ProgramData\EVE-NG\client_pack_installed.flag'
 
   tasks:
+
+    # ─────────────────────────────────────────────
+    # GUARD: Skip all tasks if already installed
+    # ─────────────────────────────────────────────
 
     - name: Check if EVE-NG client pack is already installed
       ansible.windows.win_stat:
         path: "{{ eve_ng_install_sentinel }}"
       register: sentinel_stat
 
+    - name: Report already installed and skip
+      ansible.builtin.debug:
+        msg: "EVE-NG client pack is already installed (sentinel found). Nothing to do."
+      when: sentinel_stat.stat.exists
+
+    # ─────────────────────────────────────────────
+    # DOWNLOAD
+    # ─────────────────────────────────────────────
+
     - name: Download EVE-NG Windows Client Pack 3.0
       ansible.windows.win_get_url:
         url: "{{ eve_ng_client_pack_url }}"
         dest: "{{ eve_ng_client_pack_dest }}"
-        force: false                          # skip re-download if file exists
+        force: false                          # skip re-download if file already exists
       when: not sentinel_stat.stat.exists
 
-    - name: Install EVE-NG Client Pack silently
+    - name: Confirm installer was downloaded
+      ansible.windows.win_stat:
+        path: "{{ eve_ng_client_pack_dest }}"
+      register: installer_stat
+      when: not sentinel_stat.stat.exists
+
+    - name: Fail if installer file is missing after download
+      ansible.builtin.fail:
+        msg: "Installer not found at {{ eve_ng_client_pack_dest }} — download may have failed."
+      when:
+        - not sentinel_stat.stat.exists
+        - not installer_stat.stat.exists
+
+    # ─────────────────────────────────────────────
+    # INSTALL VIA SCHEDULED TASK
+    # Runs the installer in an interactive session to
+    # avoid WinRM Session 0 isolation hanging the install.
+    # ─────────────────────────────────────────────
+
+    - name: Clean up any leftover scheduled task from a previous failed run
       ansible.windows.win_shell: |
-        Start-Process -FilePath "{{ eve_ng_client_pack_dest }}" `
-          -ArgumentList '/S' `
-          -Wait `
-          -NoNewWindow
+        if (Get-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -ErrorAction SilentlyContinue) {
+          Unregister-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -Confirm:$false
+          Write-Output "Removed stale task."
+        } else {
+          Write-Output "No stale task found."
+        }
       when: not sentinel_stat.stat.exists
-      register: install_result
 
-    - name: Verify installation by checking for a registered URI handler
+    - name: Register scheduled task to run installer interactively
+      ansible.windows.win_shell: |
+        $action = New-ScheduledTaskAction `
+          -Execute "{{ eve_ng_client_pack_dest }}"
+
+        $principal = New-ScheduledTaskPrincipal `
+          -UserId "BUILTIN\Administrators" `
+          -RunLevel Highest `
+          -LogonType Interactive
+
+        $settings = New-ScheduledTaskSettingsSet `
+          -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+          -MultipleInstances IgnoreNew
+
+        Register-ScheduledTask `
+          -TaskName "{{ eve_ng_install_task_name }}" `
+          -Action $action `
+          -Principal $principal `
+          -Settings $settings `
+          -Force | Out-Null
+
+        Write-Output "Scheduled task registered."
+      when: not sentinel_stat.stat.exists
+
+    - name: Start the installer scheduled task
+      ansible.windows.win_shell: |
+        Start-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}"
+        Write-Output "Scheduled task started."
+      when: not sentinel_stat.stat.exists
+
+    - name: Poll until installer task completes (every 15s, timeout 15min)
+      ansible.windows.win_shell: |
+        $task = Get-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -ErrorAction SilentlyContinue
+        if (-not $task) {
+          Write-Output "Task not found."
+          exit 1
+        }
+        $state = $task.State
+        Write-Output "Current task state: $state"
+        if ($state -eq "Running") { exit 1 } else { exit 0 }
+      register: task_poll
+      until: task_poll.rc == 0
+      retries: 60
+      delay: 15
+      when: not sentinel_stat.stat.exists
+
+    - name: Check scheduled task last run result
+      ansible.windows.win_shell: |
+        $info = Get-ScheduledTaskInfo -TaskName "{{ eve_ng_install_task_name }}"
+        $result = $info.LastTaskResult
+        Write-Output "Last task result code: $result"
+        # 0 = success, 267009 = still running (shouldn't reach here), anything else = failure
+        if ($result -ne 0) { exit 1 } else { exit 0 }
+      register: task_result
+      when: not sentinel_stat.stat.exists
+
+    - name: Fail if installer task reported an error
+      ansible.builtin.fail:
+        msg: >
+          EVE-NG installer scheduled task completed with a non-zero result.
+          RDP into the Jumphost and run the installer manually to investigate.
+          Task result output: {{ task_result.stdout }}
+      when:
+        - not sentinel_stat.stat.exists
+        - task_result.rc != 0
+
+    - name: Remove installer scheduled task
+      ansible.windows.win_shell: |
+        Unregister-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -Confirm:$false
+        Write-Output "Scheduled task removed."
+      when: not sentinel_stat.stat.exists
+
+    # ─────────────────────────────────────────────
+    # VERIFY
+    # ─────────────────────────────────────────────
+
+    - name: Verify telnet:// URI handler was registered in HKLM
       ansible.windows.win_reg_stat:
         path: HKLM:\SOFTWARE\Classes\telnet
         name: URL Protocol
       register: telnet_handler
       when: not sentinel_stat.stat.exists
 
-    - name: Fail if URI handler was not registered
+    - name: Fail if telnet:// URI handler is missing
       ansible.builtin.fail:
         msg: >
-          EVE-NG client pack installed but telnet:// URI handler is missing.
-          Check installer logs or run manually on the Jumphost.
+          EVE-NG client pack installation completed but the telnet:// URI handler
+          is missing from HKLM:\SOFTWARE\Classes\telnet. The install may have
+          partially failed — check Event Viewer on the Jumphost.
       when:
         - not sentinel_stat.stat.exists
         - not telnet_handler.exists
 
+    # ─────────────────────────────────────────────
+    # FINALISE
+    # ─────────────────────────────────────────────
+
+    - name: Ensure sentinel directory exists
+      ansible.windows.win_file:
+        path: 'C:\ProgramData\EVE-NG'
+        state: directory
+      when: not sentinel_stat.stat.exists
+
     - name: Write installation sentinel file
       ansible.windows.win_copy:
-        content: "{{ ansible_date_time.iso8601 }}"
+        content: "EVE-NG-Win-Client-Pack-3.0 installed"
         dest: "{{ eve_ng_install_sentinel }}"
       when:
         - not sentinel_stat.stat.exists
         - telnet_handler.exists
 
-    - name: Clean up installer
+    - name: Clean up installer from Temp
       ansible.windows.win_file:
         path: "{{ eve_ng_client_pack_dest }}"
         state: absent
+      when: not sentinel_stat.stat.exists
+
+    - name: Report installation complete
+      ansible.builtin.debug:
+        msg: >
+          EVE-NG Windows Client Pack 3.0 installed and verified successfully.
+          URI handlers (telnet://, vnc://, capture://) are registered system-wide in HKLM.
       when: not sentinel_stat.stat.exists
