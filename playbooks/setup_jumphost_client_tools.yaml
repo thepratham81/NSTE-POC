@@ -106,9 +106,9 @@
           -Execute "{{ eve_ng_client_pack_dest }}"
 
         $principal = New-ScheduledTaskPrincipal `
-          -UserId "BUILTIN\Administrators" `
+          -UserId "SYSTEM" `
           -RunLevel Highest `
-          -LogonType Interactive
+          -LogonType ServiceAccount
 
         $settings = New-ScheduledTaskSettingsSet `
           -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
