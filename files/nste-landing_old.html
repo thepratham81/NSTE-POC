@@ -38,86 +38,6 @@
     overflow-x: hidden;
   }
 
-  /* ── EVE-NG Card Credentials ── */
-  .eve-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    cursor: default;
-    text-decoration: none;
-  }
-
-  .eve-creds {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    margin-top: 0.4rem;
-    background: rgba(0,0,0,0.25);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.6rem 0.75rem;
-  }
-
-  .cred-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .cred-label {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    width: 32px;
-    flex-shrink: 0;
-  }
-
-  .cred-value {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    color: var(--accent-cyan);
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .cred-link {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-decoration-color: rgba(6, 182, 212, 0.4);
-    transition: text-decoration-color 0.15s ease;
-  }
-
-  .cred-link:hover {
-    text-decoration-color: var(--accent-cyan);
-  }
-
-  .copy-btn {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 3px 6px;
-    cursor: pointer;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-  }
-
-  .copy-btn:hover {
-    border-color: var(--accent-blue);
-    color: var(--accent-blue);
-  }
-
-  .copy-btn.copied {
-    border-color: var(--accent-green);
-    color: var(--accent-green);
-  }
-
   /* ── Background grid effect ── */
   body::before {
     content: '';
@@ -691,36 +611,14 @@
     <div class="section-label">Quick Access</div>
     <div class="quick-links">
 
-      <div class="link-card eve-card">
+      <a href="#EVE_NG_URL" class="link-card" target="_blank">
         <div class="link-card-icon blue">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         </div>
         <h4>EVE-NG Console</h4>
         <p>Access lab topology and virtual devices</p>
-        <div class="eve-creds">
-          <div class="cred-row">
-            <span class="cred-label">URL</span>
-            <a class="cred-value cred-link" id="eve-url" href="http://192.168.171.100/#!/login" target="_blank">http://192.168.171.100/#!/login</a>
-            <button class="copy-btn" onclick="copyVal('eve-url', this)" title="Copy URL">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-          </div>
-          <div class="cred-row">
-            <span class="cred-label">User</span>
-            <span class="cred-value" id="eve-user">admin</span>
-            <button class="copy-btn" onclick="copyVal('eve-user', this)" title="Copy username">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-          </div>
-          <div class="cred-row">
-            <span class="cred-label">Pass</span>
-            <span class="cred-value" id="eve-pass">eve</span>
-            <button class="copy-btn" onclick="copyVal('eve-pass', this)" title="Copy password">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>
+        <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
 
       <a href="#SERVICENOW_CATALOG_URL" class="link-card" target="_blank">
         <div class="link-card-icon amber">
@@ -860,15 +758,6 @@
 </div>
 
 <script>
-  // ── Copy to clipboard ──
-  function copyVal(id, btn) {
-    const text = document.getElementById(id).textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1500);
-    });
-  }
-
   // ── Live Clock ──
   function updateClock() {
     const now = new Date();
