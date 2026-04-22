@@ -17,6 +17,7 @@
     eve_ng_host: "{{ vault_eve_ng_host }}"
     eve_ng_username: "{{ vault_eve_ng_username }}"
     eve_ng_password: "{{ vault_eve_ng_password }}"
+    eve_ng_bin: /opt/eveng-venv/bin/eve-ng
     # Short identifier resolved from the EVE_NG_TOPOLOGY_IDENTIFIER environment
     # variable (set by the ADO pipeline). Override via -e "eve_ng_topology_key=<identifier>".
     eve_ng_topology_key: "{{ lookup('env', 'EVE_NG_TOPOLOGY_IDENTIFIER') }}"
@@ -62,7 +63,7 @@
     - name: Create lab from topology
       ansible.builtin.command:
         argv:
-          - eve-ng
+          - "{{ eve_ng_bin }}"
           - --host
           - "{{ eve_ng_host }}"
           - --username

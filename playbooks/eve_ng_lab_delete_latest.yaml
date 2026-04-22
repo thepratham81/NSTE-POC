@@ -19,6 +19,7 @@
     eve_ng_host: "{{ vault_eve_ng_host }}"
     eve_ng_username: "{{ vault_eve_ng_username }}"
     eve_ng_password: "{{ vault_eve_ng_password }}"
+    eve_ng_bin: /opt/eveng-venv/bin/eve-ng
 
   tasks:
     - name: Fail if eve_ng_lab_path is not defined
@@ -29,7 +30,7 @@
     - name: Delete lab
       ansible.builtin.command:
         argv:
-          - eve-ng
+          - "{{ eve_ng_bin }}"
           - --host
           - "{{ eve_ng_host }}"
           - --username

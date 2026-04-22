@@ -14,7 +14,7 @@ if [ "$NOW" -gt "$BOOKING_END" ]; then
   ANSIBLE="/opt/ansible-venv/bin/ansible-playbook"
   HOSTS="/etc/ansible/nste/hosts.ini"
   VAULT="--vault-password-file /etc/ansible/nste/.vault_pass"
-  LOG="/var/log/nste_access.log"
+  LOG="/etc/ansible/nste/nste_access.log"
 
   echo "$(date): [CLEANUP] Booking $BOOKING_ID expired — beginning lab teardown and account revocation for $BOOKING_USER" >> "$LOG"
 
@@ -36,7 +36,7 @@ if [ "$NOW" -gt "$BOOKING_END" ]; then
       -e "eve_ng_lab_path=$LAB_PATH"
 
     if [ $? -ne 0 ]; then
-      echo "$(date): [ERROR] eve_ng_lab_delete.yaml failed for booking $BOOKING_ID — aborting cleanup" >> "$LOG"
+      echo "$(date): [ERROR] eve_ng_lab_delete_latest.yaml failed for booking $BOOKING_ID — aborting cleanup" >> "$LOG"
       exit 1
     fi
     echo "$(date): [OK] Lab deleted for booking $BOOKING_ID" >> "$LOG"
