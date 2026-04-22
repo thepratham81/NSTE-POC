@@ -21,17 +21,17 @@ if [ "$NOW" -gt "$BOOKING_END" ]; then
   # ── Steps 1 & 2: Stop and delete the lab (skipped if lab was never provisioned) ──
   if [ "$LAB_PATH" != "null" ] && [ -n "$LAB_PATH" ]; then
 
-    $ANSIBLE /etc/ansible/nste/playbooks/eve_ng_lab_stop.yaml \
+    $ANSIBLE /etc/ansible/nste/playbooks/eve_ng_lab_stop_latest.yaml \
       $VAULT \
       -e "eve_ng_lab_path=$LAB_PATH"
 
     if [ $? -ne 0 ]; then
-      echo "$(date): [ERROR] eve_ng_lab_stop.yaml failed for booking $BOOKING_ID — aborting cleanup" >> "$LOG"
+      echo "$(date): [ERROR] eve_ng_lab_stop_latest.yaml failed for booking $BOOKING_ID — aborting cleanup" >> "$LOG"
       exit 1
     fi
     echo "$(date): [OK] Lab nodes stopped for booking $BOOKING_ID" >> "$LOG"
 
-    $ANSIBLE /etc/ansible/nste/playbooks/eve_ng_lab_delete.yaml \
+    $ANSIBLE /etc/ansible/nste/playbooks/eve_ng_lab_delete_latest.yaml \
       $VAULT \
       -e "eve_ng_lab_path=$LAB_PATH"
 
