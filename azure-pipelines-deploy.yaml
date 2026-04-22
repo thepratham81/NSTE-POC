@@ -87,7 +87,7 @@ stages:
                 printf '{"booking_username":"%s","booking_id":"%s","end_epoch":%s,"booking_user_email":"%s","lab_path":null}\n' \
                   "$(bookingUsername)" "$(bookingId)" "$(bookingEndEpoch)" "$(bookingUserEmail)" \
                   > /etc/ansible/nste/active_booking.json
-            workingDirectory: $(Build.SourcesDirectory)
+              workingDirectory: $(Build.SourcesDirectory)
 
           - task: Bash@3
             displayName: 'Confirm Email Notification Sent'
@@ -135,7 +135,7 @@ stages:
                   playbooks/eve_ng_lab_create_latest.yaml \
                   --vault-password-file $(VAULT_PASS_FILE) \
                   -e "eve_ng_topology_key=$(EVE_NG_TOPOLOGY_IDENTIFIER)"
-            workingDirectory: $(Build.SourcesDirectory)
+              workingDirectory: $(Build.SourcesDirectory)
 
           - task: Bash@3
             displayName: 'Capture Derived Lab Path and Update Booking State'
@@ -184,4 +184,4 @@ stages:
                   playbooks/eve_ng_lab_start_latest.yaml \
                   --vault-password-file $(VAULT_PASS_FILE) \
                   -e "eve_ng_lab_path=$(labPath)"
-            workingDirectory: $(Build.SourcesDirectory)
+              workingDirectory: $(Build.SourcesDirectory)
