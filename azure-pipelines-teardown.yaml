@@ -1,0 +1,129 @@
+---
+# azure-pipelines-teardown.yaml
+#
+# NSTE Combined Teardown Pipeline
+# Stage 1 - Stop_Lab:           Shuts down all EVE-NG lab nodes
+# Stage 2 - Delete_Lab:         Destroys the EVE-NG lab permanently
+# Stage 3 - Revoke_JIT_Access:  Deletes the temporary JIT account and notifies user
+#
+# EVE_NG_LAB_PATH is read dynamically from active_booking.json (written by the
+# deploy pipeline) so no hardcoded path is required here.
+#
+# Trigger: Manual only.
+# Pool: NSTE-Teardown (rhel9-agent-02)
+#
+# Required pipeline variables:
+#   bookingUsername    – local account name to remove from the Jumphost
+#   bookingId          – unique booking reference ID
+#   bookingUserEmail   – recipient address for the revocation notification email
+
+trigger: none
+
+variables:
+  ANSIBLE_CFG: /home/auto/NSTE-POC/ansible.cfg
+  VAULT_PASS_FILE: /etc/ansible/nste/.vault_pass
+  HOSTS_INI: /etc/ansible/nste/hosts.ini
+  ANSIBLE_BIN: /opt/ansible-venv/bin/ansible-playbook
+  BOOKING_FILE: /etc/ansible/nste/active_booking.json
+
+stages:
+
+  # ─────────────────────────────────────────────
+  # STAGE 1: STOP LAB
+  # ─────────────────────────────────────────────
+  - stage: Stop_Lab
+    displayName: "Stage 1: Stop Lab"
+    pool:
+      name: NSTE-Teardown
+
+    jobs:
+      - job: stop_lab
+        displayName: "Stop all lab nodes"
+        steps:
+          - checkout: self
+
+          - script: |
+              LAB_PATH=$(jq -r '.lab_path' $(BOOKING_FILE))
+              echo "Resolved EVE-NG lab path: $LAB_PATH"
+
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_stop_latest.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_lab_path=$LAB_PATH"
+            workingDirectory: $(Build.SourcesDirectory)
+
+  # ─────────────────────────────────────────────
+  # STAGE 2: DELETE LAB
+  # ─────────────────────────────────────────────
+  - stage: Delete_Lab
+    displayName: "Stage 2: Delete Lab"
+    dependsOn: Stop_Lab
+    condition: succeeded()
+    pool:
+      name: NSTE-Teardown
+
+    jobs:
+      - job: delete_lab
+        displayName: "Delete lab permanently"
+        steps:
+          - checkout: self
+
+          - script: |
+              LAB_PATH=$(jq -r '.lab_path' $(BOOKING_FILE))
+              echo "Resolved EVE-NG lab path: $LAB_PATH"
+
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/eve_ng_lab_delete_latest.yaml \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "eve_ng_lab_path=$LAB_PATH"
+            workingDirectory: $(Build.SourcesDirectory)
+
+  # ─────────────────────────────────────────────
+  # STAGE 3: REVOKE JIT ACCESS
+  # ─────────────────────────────────────────────
+  - stage: Revoke_JIT_Access
+    displayName: "Stage 3: Revoke JIT Access"
+    dependsOn: Delete_Lab
+    condition: succeeded()
+    pool:
+      name: NSTE-Teardown
+
+    jobs:
+      - job: delete_jit_account
+        displayName: "Delete temporary JIT account and notify user"
+        steps:
+          - checkout: self
+            displayName: "Checkout NSTE Ansible playbooks from GitHub"
+
+          - script: |
+              # Clean up any previous teardown status file
+              rm -f /tmp/nste_teardown_email_status.txt
+
+              ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+              $(ANSIBLE_BIN) \
+                playbooks/delete_temp_user.yaml \
+                -i $(HOSTS_INI) \
+                --vault-password-file $(VAULT_PASS_FILE) \
+                -e "booking_username=$(bookingUsername) booking_id=$(bookingId) booking_user_email=$(bookingUserEmail)"
+
+              rm -f $(BOOKING_FILE)
+            displayName: "Delete temporary JIT account and clear state file"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: |
+              STATUS_FILE="/tmp/nste_teardown_email_status.txt"
+
+              if [ -f "$STATUS_FILE" ]; then
+                STATUS=$(cat "$STATUS_FILE")
+                echo "##[section]Email Confirmation"
+                echo "✅ Revocation notification sent successfully"
+                echo "   $STATUS"
+                rm -f "$STATUS_FILE"
+              else
+                echo "##vso[task.logissue type=error]Teardown email status file not found — notification may have failed."
+                echo "##vso[task.complete result=Failed;]Revocation email confirmation failed."
+                exit 1
+              fi
+            displayName: "Confirm revocation notification email sent"

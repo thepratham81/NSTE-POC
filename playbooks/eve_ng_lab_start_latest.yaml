@@ -1,0 +1,49 @@
+---
+# eve_ng_lab_start.yaml
+# Starts all nodes in the EVE-NG lab.
+# Runs locally on the RHEL automation VM (connection: local).
+#
+# eve_ng_lab_path is passed in via -e from the pipeline or cron job,
+# resolved from active_booking.json.
+
+- name: EVE-NG | Start Lab
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - /etc/ansible/nste/vault.yaml
+    - "{{ playbook_dir }}/../vars/nste_vars.yaml"
+
+  vars:
+    eve_ng_host: "{{ vault_eve_ng_host }}"
+    eve_ng_username: "{{ vault_eve_ng_username }}"
+    eve_ng_password: "{{ vault_eve_ng_password }}"
+
+  tasks:
+    - name: Fail if eve_ng_lab_path is not defined
+      ansible.builtin.fail:
+        msg: "eve_ng_lab_path must be provided via -e 'eve_ng_lab_path=<path>'"
+      when: eve_ng_lab_path is not defined or eve_ng_lab_path | length == 0
+
+    - name: Start lab
+      ansible.builtin.command:
+        argv:
+          - eve-ng
+          - --host
+          - "{{ eve_ng_host }}"
+          - --username
+          - "{{ eve_ng_username }}"
+          - --password
+          - "{{ eve_ng_password }}"
+          - lab
+          - start
+          - --path
+          - "{{ eve_ng_lab_path }}"
+      register: start_result
+      no_log: false
+
+    - name: Show start output
+      ansible.builtin.debug:
+        msg: "{{ start_result.stdout_lines }}"
+      when: start_result.stdout_lines | length > 0

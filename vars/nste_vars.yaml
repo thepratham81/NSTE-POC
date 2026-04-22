@@ -1,0 +1,13 @@
+---
+# vars/nste_vars.yaml
+#
+# Non-sensitive NSTE configuration variables.
+# Committed to source control alongside playbooks/, files/, and scripts/.
+#
+# topology_map: maps short identifiers to filenames under the /files directory.
+# To register a new topology, add a line here and place the topology file under /files.
+
+topology_map:
+  poc:    automation-topology-poc.yaml
+  stores: automation-topology-stores.yaml
+  dc:     automation-topology-dc.yaml

@@ -1,0 +1,187 @@
+---
+# azure-pipelines-deploy.yaml
+#
+# NSTE Combined Deploy Pipeline
+# Stage 1 - Provision_JIT_Access: Creates temporary JIT account and notifies user
+# Stage 2 - Create_Lab:           Provisions the EVE-NG lab from topology file;
+#                                  derives and propagates EVE_NG_LAB_PATH
+# Stage 3 - Start_Lab:            Boots all lab nodes
+#
+# Trigger: Manual only.
+# Pool: NSTE-Deploy (rhel9-agent-01)
+#
+# Required pipeline variables:
+#   bookingUsername             – local account name to create on the Jumphost
+#   bookingId                   – unique booking reference ID
+#   bookingUserEmail            – recipient address for the access notification email
+#   bookingEndEpoch             – Unix epoch time at which the booking expires
+#   EVE_NG_TOPOLOGY_IDENTIFIER  – short topology identifier (e.g. poc, stores, dc)
+#                                 looked up against topology_map in vars/nste_vars.yaml
+#                                 to resolve the corresponding topology file under files/
+
+trigger: none
+
+variables:
+  ANSIBLE_CFG: /home/auto/NSTE-POC/ansible.cfg
+  VAULT_PASS_FILE: /etc/ansible/nste/.vault_pass
+  HOSTS_INI: /etc/ansible/nste/hosts.ini
+  ANSIBLE_BIN: /opt/ansible-venv/bin/ansible-playbook
+
+stages:
+
+  # ─────────────────────────────────────────────
+  # STAGE 1: PROVISION JIT ACCESS
+  # ─────────────────────────────────────────────
+  - stage: Provision_JIT_Access
+    displayName: "Stage 1: Provision JIT Access"
+    pool:
+      name: NSTE-Deploy
+
+    jobs:
+      - job: create_jit_account
+        displayName: "Create temporary JIT account and notify user"
+        steps:
+          - checkout: self
+            displayName: "Checkout NSTE Ansible playbooks from GitHub"
+
+          - task: Bash@3
+            displayName: 'Sync playbooks and scripts from GitHub checkout'
+            inputs:
+              targetType: inline
+              script: |
+                mkdir -p /etc/ansible/nste/playbooks
+                mkdir -p /etc/ansible/nste/scripts
+                mkdir -p /etc/ansible/nste/vars
+                cp $(Build.SourcesDirectory)/playbooks/*.yaml /etc/ansible/nste/playbooks/
+                cp $(Build.SourcesDirectory)/vars/*.yaml /etc/ansible/nste/vars/
+                cp $(Build.SourcesDirectory)/scripts/cleanup_stale_account_lab.sh /etc/ansible/nste/scripts/
+                chmod +x /etc/ansible/nste/scripts/cleanup_stale_account_lab.sh
+
+          - task: Bash@3
+            displayName: 'Clean up any previous status file'
+            inputs:
+              targetType: inline
+              script: |
+                rm -f /tmp/nste_email_status.txt
+                rm -f /tmp/nste_temp_password.txt
+
+          - task: Bash@3
+            displayName: 'Create Temporary JIT Account and Notify User'
+            inputs:
+              targetType: inline
+              script: |
+                ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+                $(ANSIBLE_BIN) \
+                  playbooks/create_temp_user.yaml \
+                  -i $(HOSTS_INI) \
+                  --vault-password-file $(VAULT_PASS_FILE) \
+                  -e "booking_username=$(bookingUsername) booking_id=$(bookingId) booking_user_email=$(bookingUserEmail)"
+
+                TEMP_PASS=$(cat /tmp/nste_temp_password.txt)
+                echo "##vso[task.setvariable variable=tempPassword;issecret=true]$TEMP_PASS"
+
+                # Write initial booking state file with lab_path null.
+                # The Create_Lab stage will overwrite this with the derived lab path
+                # once the topology file has been processed. A null lab_path signals
+                # to the cron cleanup script that no lab was provisioned yet.
+                printf '{"booking_username":"%s","booking_id":"%s","end_epoch":%s,"booking_user_email":"%s","lab_path":null}\n' \
+                  "$(bookingUsername)" "$(bookingId)" "$(bookingEndEpoch)" "$(bookingUserEmail)" \
+                  > /etc/ansible/nste/active_booking.json
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: Bash@3
+            displayName: 'Confirm Email Notification Sent'
+            inputs:
+              targetType: inline
+              script: |
+                STATUS_FILE="/tmp/nste_email_status.txt"
+
+                if [ -f "$STATUS_FILE" ]; then
+                  STATUS=$(cat "$STATUS_FILE")
+                  echo "##[section]Email Confirmation"
+                  echo "✅ Notification sent successfully"
+                  echo "   $STATUS"
+                  rm -f "$STATUS_FILE"
+                else
+                  echo "##vso[task.logissue type=error]Email status file not found — notification may have failed."
+                  echo "##vso[task.complete result=Failed;]Email confirmation failed."
+                  exit 1
+                fi
+
+  # ─────────────────────────────────────────────
+  # STAGE 2: CREATE LAB
+  # ─────────────────────────────────────────────
+  - stage: Create_Lab
+    displayName: "Stage 2: Create Lab"
+    dependsOn: Provision_JIT_Access
+    condition: succeeded()
+    pool:
+      name: NSTE-Deploy
+
+    jobs:
+      - job: create_lab
+        displayName: "Create lab from topology"
+        steps:
+          - checkout: self
+            displayName: "Checkout NSTE Ansible playbooks from GitHub"
+
+          - task: Bash@3
+            displayName: 'Create Lab from Topology'
+            inputs:
+              targetType: inline
+              script: |
+                ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+                $(ANSIBLE_BIN) \
+                  playbooks/eve_ng_lab_create_latest.yaml \
+                  --vault-password-file $(VAULT_PASS_FILE) \
+                  -e "eve_ng_topology_key=$(EVE_NG_TOPOLOGY_IDENTIFIER)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: Bash@3
+            displayName: 'Capture Derived Lab Path and Update Booking State'
+            name: captureLabPath
+            inputs:
+              targetType: inline
+              script: |
+                LAB_PATH=$(cat /tmp/nste_lab_path.txt)
+                echo "Derived EVE-NG lab path: $LAB_PATH"
+
+                # Propagate to downstream stages
+                echo "##vso[task.setvariable variable=labPath;isOutput=true]$LAB_PATH"
+
+                # Overwrite booking state file with the now-known lab path
+                printf '{"booking_username":"%s","booking_id":"%s","end_epoch":%s,"booking_user_email":"%s","lab_path":"%s"}\n' \
+                  "$(bookingUsername)" "$(bookingId)" "$(bookingEndEpoch)" "$(bookingUserEmail)" "$LAB_PATH" \
+                  > /etc/ansible/nste/active_booking.json
+
+  # ─────────────────────────────────────────────
+  # STAGE 3: START LAB
+  # ─────────────────────────────────────────────
+  - stage: Start_Lab
+    displayName: "Stage 3: Start Lab"
+    dependsOn: Create_Lab
+    condition: succeeded()
+    pool:
+      name: NSTE-Deploy
+
+    variables:
+      labPath: $[ stageDependencies.Create_Lab.create_lab.outputs['captureLabPath.labPath'] ]
+
+    jobs:
+      - job: start_lab
+        displayName: "Start all lab nodes"
+        steps:
+          - checkout: self
+            displayName: "Checkout NSTE Ansible playbooks from GitHub"
+
+          - task: Bash@3
+            displayName: 'Start All Lab Nodes'
+            inputs:
+              targetType: inline
+              script: |
+                ANSIBLE_CONFIG=$(ANSIBLE_CFG) \
+                $(ANSIBLE_BIN) \
+                  playbooks/eve_ng_lab_start.yaml \
+                  --vault-password-file $(VAULT_PASS_FILE) \
+                  -e "eve_ng_lab_path=$(labPath)"
+            workingDirectory: $(Build.SourcesDirectory)

@@ -1,0 +1,82 @@
+---
+# eve_ng_lab_create.yaml
+# Creates the EVE-NG lab from a topology file using the eve-ng SDK CLI.
+# Derives the lab path dynamically from the topology file's `name` field.
+# Runs locally on the RHEL automation VM (connection: local).
+
+- name: EVE-NG | Create Lab from Topology
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - /etc/ansible/nste/vault.yaml
+    - "{{ playbook_dir }}/../vars/nste_vars.yaml"
+
+  vars:
+    eve_ng_host: "{{ vault_eve_ng_host }}"
+    eve_ng_username: "{{ vault_eve_ng_username }}"
+    eve_ng_password: "{{ vault_eve_ng_password }}"
+    # Short identifier resolved from the EVE_NG_TOPOLOGY_IDENTIFIER environment
+    # variable (set by the ADO pipeline). Override via -e "eve_ng_topology_key=<identifier>".
+    eve_ng_topology_key: "{{ lookup('env', 'EVE_NG_TOPOLOGY_IDENTIFIER') }}"
+    eve_ng_topology_file: "{{ playbook_dir }}/../files/{{ topology_map[eve_ng_topology_key] }}"
+
+  tasks:
+    - name: Fail if topology identifier is not recognised
+      ansible.builtin.fail:
+        msg: >
+          Unknown topology identifier '{{ eve_ng_topology_key }}'.
+          Valid identifiers are: {{ topology_map.keys() | join(', ') }}.
+      when: eve_ng_topology_key not in topology_map
+
+    - name: Verify topology file exists
+      ansible.builtin.stat:
+        path: "{{ eve_ng_topology_file }}"
+      register: topology_stat
+
+    - name: Fail if topology file is missing
+      ansible.builtin.fail:
+        msg: "Topology file not found at: {{ eve_ng_topology_file }}"
+      when: not topology_stat.stat.exists
+
+    - name: Read topology file content
+      ansible.builtin.slurp:
+        src: "{{ eve_ng_topology_file }}"
+      register: topology_raw
+
+    - name: Derive EVE-NG lab path from topology name field
+      ansible.builtin.set_fact:
+        eve_ng_lab_path: "/{{ (topology_raw.content | b64decode | from_yaml).name }}.unl"
+
+    - name: Write derived lab path for pipeline capture
+      ansible.builtin.copy:
+        content: "{{ eve_ng_lab_path }}"
+        dest: /tmp/nste_lab_path.txt
+        mode: '0644'
+
+    - name: Show derived lab path
+      ansible.builtin.debug:
+        msg: "Derived EVE-NG lab path: {{ eve_ng_lab_path }}"
+
+    - name: Create lab from topology
+      ansible.builtin.command:
+        argv:
+          - eve-ng
+          - --host
+          - "{{ eve_ng_host }}"
+          - --username
+          - "{{ eve_ng_username }}"
+          - --password
+          - "{{ eve_ng_password }}"
+          - lab
+          - create-from-topology
+          - -t
+          - "{{ eve_ng_topology_file }}"
+      register: create_result
+      no_log: false
+
+    - name: Show create output
+      ansible.builtin.debug:
+        msg: "{{ create_result.stdout_lines }}"
+      when: create_result.stdout_lines | length > 0
