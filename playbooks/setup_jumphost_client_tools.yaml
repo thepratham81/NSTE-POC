@@ -148,10 +148,10 @@
 
     - name: Check scheduled task last run result
       ansible.windows.win_shell: |
-        $info = Get-ScheduledTaskInfo -TaskName "{{ eve_ng_install_task_name }}"
+        $taskName = '{{ eve_ng_install_task_name }}'
+        $info = Get-ScheduledTaskInfo -TaskName $taskName
         $result = $info.LastTaskResult
         Write-Output "Last task result code: $result"
-        # 0 = success, 267009 = still running (shouldn't reach here), anything else = failure
         if ($result -ne 0) { exit 1 } else { exit 0 }
       register: task_result
       when: not sentinel_stat.stat.exists
