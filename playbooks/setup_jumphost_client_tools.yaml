@@ -8,13 +8,19 @@
 # The client pack registers URI protocol handlers (telnet://, vnc://, capture://)
 # so that node clicks in the EVE-NG web UI open the correct local terminal/tool.
 #
+# Installed components:
+#   - Wireshark 4.6.0
+#   - UltraVNC 1.6.40
+#   - PuTTY 0.83
+#   - Plink 0.83
+#
 # WHY SCHEDULED TASK INSTEAD OF DIRECT EXECUTION:
 # WinRM runs processes in Session 0 (non-interactive background session).
 # GUI-based installers that require interactive context will hang indefinitely
-# when launched directly via win_shell over WinRM. A Scheduled Task with an
-# Interactive logon type runs in a proper user session, allowing the installer
-# to complete correctly. Ansible polls the task state every 15 seconds until
-# it finishes, keeping the automation fully hands-off.
+# when launched directly via win_shell over WinRM. A Scheduled Task running
+# as SYSTEM with ServiceAccount logon type runs with full privileges without
+# needing an active session, allowing the installer to complete correctly.
+# Ansible polls the task state every 15 seconds until it finishes.
 #
 # Run with:
 #   ANSIBLE_CONFIG=/home/auto/NSTE-POC/ansible.cfg \
@@ -36,13 +42,20 @@
     eve_ng_client_pack_url: "https://customers.eve-ng.net/EVE-NG-Win-Client-Pack-3.0.exe"
     eve_ng_client_pack_dest: 'C:\Windows\Temp\EVE-NG-Win-Client-Pack-3.0.exe'
 
-    # Scheduled task name used to run the installer in an interactive session.
+    # Scheduled task name used to run the installer as SYSTEM.
     # Unregistered automatically after install completes.
     eve_ng_install_task_name: "EVE-NG-Client-Install"
 
     # Sentinel file written by Ansible after a verified successful install.
     # Guards against re-installation on subsequent playbook runs.
     eve_ng_install_sentinel: 'C:\ProgramData\EVE-NG\client_pack_installed.flag'
+
+    # Expected installation paths for each bundled tool.
+    # Used to detect partial installs and verify successful completion.
+    eve_ng_tool_paths:
+      - 'C:\Program Files\Wireshark\Wireshark.exe'
+      - 'C:\Program Files\uvnc bvba\UltraVNC\vncviewer.exe'
+      - 'C:\Program Files\PuTTY\putty.exe'
 
   tasks:
 
@@ -61,6 +74,80 @@
       when: sentinel_stat.stat.exists
 
     # ─────────────────────────────────────────────
+    # CLEANUP: Remove partial installs and leftovers
+    # Runs unconditionally (no sentinel guard) so that
+    # re-runs always start from a clean state.
+    # ─────────────────────────────────────────────
+
+    - name: Remove any leftover scheduled task from a previous run
+      ansible.windows.win_shell: |
+        if (Get-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -ErrorAction SilentlyContinue) {
+          Unregister-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -Confirm:$false
+          Write-Output "Removed stale scheduled task."
+        } else {
+          Write-Output "No stale scheduled task found."
+        }
+      when: not sentinel_stat.stat.exists
+
+    - name: Remove installer from Temp if present (force fresh download)
+      ansible.windows.win_file:
+        path: "{{ eve_ng_client_pack_dest }}"
+        state: absent
+      when: not sentinel_stat.stat.exists
+
+    - name: Uninstall any partially installed EVE-NG client tools
+      ansible.windows.win_shell: |
+        $tools = @("Wireshark", "UltraVNC", "PuTTY")
+        $removed = @()
+        $notFound = @()
+
+        foreach ($tool in $tools) {
+          $app = Get-WmiObject -Class Win32_Product -Filter "Name LIKE '%$tool%'" -ErrorAction SilentlyContinue
+          if ($app) {
+            $app.Uninstall() | Out-Null
+            $removed += $tool
+          } else {
+            $notFound += $tool
+          }
+        }
+
+        if ($removed.Count -gt 0) {
+          Write-Output "Uninstalled: $($removed -join ', ')"
+        }
+        if ($notFound.Count -gt 0) {
+          Write-Output "Not found (clean): $($notFound -join ', ')"
+        }
+      when: not sentinel_stat.stat.exists
+      register: uninstall_result
+
+    - name: Show partial uninstall results
+      ansible.builtin.debug:
+        msg: "{{ uninstall_result.stdout_lines }}"
+      when:
+        - not sentinel_stat.stat.exists
+        - uninstall_result.stdout_lines is defined
+
+    - name: Remove leftover installation directories if present
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - 'C:\Program Files\Wireshark'
+        - 'C:\Program Files\uvnc bvba'
+        - 'C:\Program Files\PuTTY'
+      when: not sentinel_stat.stat.exists
+
+    - name: Remove leftover URI handler registry keys if present
+      ansible.windows.win_regedit:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - HKLM:\SOFTWARE\Classes\telnet
+        - HKLM:\SOFTWARE\Classes\vnc
+        - HKLM:\SOFTWARE\Classes\capture
+      when: not sentinel_stat.stat.exists
+
+    # ─────────────────────────────────────────────
     # DOWNLOAD
     # ─────────────────────────────────────────────
 
@@ -68,7 +155,7 @@
       ansible.windows.win_get_url:
         url: "{{ eve_ng_client_pack_url }}"
         dest: "{{ eve_ng_client_pack_dest }}"
-        force: false                          # skip re-download if file already exists
+        force: true
       when: not sentinel_stat.stat.exists
 
     - name: Confirm installer was downloaded
@@ -86,21 +173,11 @@
 
     # ─────────────────────────────────────────────
     # INSTALL VIA SCHEDULED TASK
-    # Runs the installer in an interactive session to
-    # avoid WinRM Session 0 isolation hanging the install.
+    # Runs as SYSTEM with no execution time limit.
+    # Polls every 15 seconds until the installer exits.
     # ─────────────────────────────────────────────
 
-    - name: Clean up any leftover scheduled task from a previous failed run
-      ansible.windows.win_shell: |
-        if (Get-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -ErrorAction SilentlyContinue) {
-          Unregister-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -Confirm:$false
-          Write-Output "Removed stale task."
-        } else {
-          Write-Output "No stale task found."
-        }
-      when: not sentinel_stat.stat.exists
-
-    - name: Register scheduled task to run installer interactively
+    - name: Register scheduled task to run installer as SYSTEM
       ansible.windows.win_shell: |
         $action = New-ScheduledTaskAction `
           -Execute "{{ eve_ng_client_pack_dest }}"
@@ -111,7 +188,7 @@
           -LogonType ServiceAccount
 
         $settings = New-ScheduledTaskSettingsSet `
-          -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+          -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
           -MultipleInstances IgnoreNew
 
         Register-ScheduledTask `
@@ -130,7 +207,7 @@
         Write-Output "Scheduled task started."
       when: not sentinel_stat.stat.exists
 
-    - name: Poll until installer task completes (every 15s, timeout 15min)
+    - name: Poll until installer task completes (every 15s, no hard timeout)
       ansible.windows.win_shell: |
         $task = Get-ScheduledTask -TaskName "{{ eve_ng_install_task_name }}" -ErrorAction SilentlyContinue
         if (-not $task) {
@@ -142,7 +219,7 @@
         if ($state -eq "Running") { exit 1 } else { exit 0 }
       register: task_poll
       until: task_poll.rc == 0
-      retries: 60
+      retries: 80
       delay: 15
       when: not sentinel_stat.stat.exists
 
@@ -156,12 +233,12 @@
       register: task_result
       when: not sentinel_stat.stat.exists
 
-    - name: Fail if installer task reported an error
+    - name: Fail if installer task reported a non-zero exit code
       ansible.builtin.fail:
         msg: >
-          EVE-NG installer scheduled task completed with a non-zero result.
+          EVE-NG installer task completed with a non-zero result code.
+          Output: {{ task_result.stdout }}
           RDP into the Jumphost and run the installer manually to investigate.
-          Task result output: {{ task_result.stdout }}
       when:
         - not sentinel_stat.stat.exists
         - task_result.rc != 0
@@ -173,10 +250,25 @@
       when: not sentinel_stat.stat.exists
 
     # ─────────────────────────────────────────────
-    # VERIFY
+    # VERIFY: Confirm all tools and URI handlers
     # ─────────────────────────────────────────────
 
-    - name: Verify telnet:// URI handler was registered in HKLM
+    - name: Verify all expected tool binaries are present
+      ansible.windows.win_stat:
+        path: "{{ item }}"
+      register: tool_stat
+      loop: "{{ eve_ng_tool_paths }}"
+      when: not sentinel_stat.stat.exists
+
+    - name: Fail if any tool binary is missing
+      ansible.builtin.fail:
+        msg: "Expected tool binary not found after install: {{ item.item }}"
+      loop: "{{ tool_stat.results }}"
+      when:
+        - not sentinel_stat.stat.exists
+        - not item.stat.exists
+
+    - name: Verify telnet:// URI handler registered in HKLM
       ansible.windows.win_reg_stat:
         path: HKLM:\SOFTWARE\Classes\telnet
         name: URL Protocol
@@ -186,9 +278,8 @@
     - name: Fail if telnet:// URI handler is missing
       ansible.builtin.fail:
         msg: >
-          EVE-NG client pack installation completed but the telnet:// URI handler
-          is missing from HKLM:\SOFTWARE\Classes\telnet. The install may have
-          partially failed — check Event Viewer on the Jumphost.
+          EVE-NG client pack installed but telnet:// URI handler is missing
+          from HKLM:\SOFTWARE\Classes\telnet. Check Event Viewer on the Jumphost.
       when:
         - not sentinel_stat.stat.exists
         - not telnet_handler.exists
@@ -205,7 +296,7 @@
 
     - name: Write installation sentinel file
       ansible.windows.win_copy:
-        content: "EVE-NG-Win-Client-Pack-3.0 installed"
+        content: "EVE-NG-Win-Client-Pack-3.0 installed successfully"
         dest: "{{ eve_ng_install_sentinel }}"
       when:
         - not sentinel_stat.stat.exists
@@ -221,5 +312,6 @@
       ansible.builtin.debug:
         msg: >
           EVE-NG Windows Client Pack 3.0 installed and verified successfully.
-          URI handlers (telnet://, vnc://, capture://) are registered system-wide in HKLM.
+          Installed: Wireshark 4.6.0, UltraVNC 1.6.40, PuTTY 0.83, Plink 0.83.
+          URI handlers (telnet://, vnc://, capture://) registered system-wide in HKLM.
       when: not sentinel_stat.stat.exists
